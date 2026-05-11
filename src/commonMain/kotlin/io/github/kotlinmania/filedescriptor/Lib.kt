@@ -84,32 +84,47 @@ import kotlin.time.Duration
  * `RawFileDescriptor` is a platform independent type alias for the
  * underlying platform file descriptor type.  It is primarily useful
  * for avoiding using platform-conditional blocks in platform independent code.
+ *
+ * The underlying width is wide enough to carry both a unix `RawFd` (signed
+ * 32-bit integer) and a Windows `RawHandle` (pointer-sized integer).
  */
-expect class RawFileDescriptor
+typealias RawFileDescriptor = Long
 
 /**
  * `SocketDescriptor` is a platform independent type alias for the
  * underlying platform socket descriptor type.  It is primarily useful
  * for avoiding using platform-conditional blocks in platform independent code.
  */
-expect class SocketDescriptor
+typealias SocketDescriptor = Long
 
-internal expect class HandleType
-
-internal expect fun defaultHandleType(): HandleType
-
-internal expect fun probeHandleType(handle: RawFileDescriptor): HandleType
-
-expect class Pollfd(fd: SocketDescriptor, events: Short, revents: Short) {
-    var fd: SocketDescriptor
-    var events: Short
-    var revents: Short
+/**
+ * Internal classifier carried by [OwnedHandle] to remember whether a handle
+ * refers to a character device, disk file, pipe, socket, or other kernel
+ * object. On unix this is always [Unknown] because the unix syscalls don't
+ * need the distinction.
+ */
+internal enum class HandleType {
+    Unknown,
+    Char,
+    Disk,
+    Pipe,
+    Socket,
 }
 
-expect val POLLIN: Short
-expect val POLLOUT: Short
-expect val POLLERR: Short
-expect val POLLHUP: Short
+internal fun defaultHandleType(): HandleType = HandleType.Unknown
+
+internal fun probeHandleType(handle: RawFileDescriptor): HandleType = HandleType.Unknown
+
+class Pollfd(
+    var fd: SocketDescriptor,
+    var events: Short,
+    var revents: Short,
+)
+
+const val POLLIN: Short = 0x0001
+const val POLLOUT: Short = 0x0004
+const val POLLERR: Short = 0x0008
+const val POLLHUP: Short = 0x0010
 
 /**
  * Errors raised by [FileDescriptor], [OwnedHandle], [Pipe], [poll], and
@@ -230,7 +245,11 @@ interface FromRawSocketDescriptor<T> {
 class OwnedHandle internal constructor(
     internal var handle: RawFileDescriptor,
     internal var handleType: HandleType,
-) {
+) : AsRawFileDescriptor, IntoRawFileDescriptor {
+    override fun asRawFileDescriptor(): RawFileDescriptor = handle
+
+    override fun intoRawFileDescriptor(): RawFileDescriptor = handle
+
     companion object {
         /**
          * Create a new handle from some object that is convertible into
@@ -302,7 +321,11 @@ internal expect fun <F : AsRawFileDescriptor> ownedHandleDupImpl(
  */
 class FileDescriptor internal constructor(
     internal val handle: OwnedHandle,
-) {
+) : AsRawFileDescriptor, IntoRawFileDescriptor {
+    override fun asRawFileDescriptor(): RawFileDescriptor = handle.asRawFileDescriptor()
+
+    override fun intoRawFileDescriptor(): RawFileDescriptor = handle.intoRawFileDescriptor()
+
     companion object {
         /**
          * Create a new descriptor from some object that is convertible into
@@ -355,22 +378,6 @@ class FileDescriptor internal constructor(
     }
 
     /**
-     * A convenience method for creating a [Stdio] object
-     * to be used for eg: redirecting the stdio streams of a child
-     * process.  The `Stdio` is created using a duplicated handle so
-     * that the source handle remains alive.
-     */
-    fun asStdio(): Result<Stdio> = asStdioImpl()
-
-    /**
-     * A convenience method for creating a [PlatformFile] object,
-     * the kotlin-port equivalent of `std::fs::File`.
-     * The file is created using a duplicated handle so
-     * that the source handle remains alive.
-     */
-    fun asFile(): Result<PlatformFile> = asFileImpl()
-
-    /**
      * Attempt to change the non-blocking IO mode of the file descriptor.
      * Not all kinds of file descriptor can be placed in non-blocking mode
      * on all systems, and some file descriptors will claim to be in
@@ -380,20 +387,6 @@ class FileDescriptor internal constructor(
      */
     fun setNonBlocking(nonBlocking: Boolean): Result<Unit> = setNonBlockingImpl(nonBlocking)
 }
-
-/**
- * Platform analog of `std::process::Stdio`. Defined per-target by `unix.rs` /
- * `windows.rs` and threaded back to the standard child-process spawning APIs
- * on each platform.
- */
-expect class Stdio
-
-/** Platform analog of `std::fs::File`, returned by [FileDescriptor.asFile]. */
-expect class PlatformFile
-
-internal expect fun FileDescriptor.asStdioImpl(): Result<Stdio>
-
-internal expect fun FileDescriptor.asFileImpl(): Result<PlatformFile>
 
 internal expect fun FileDescriptor.setNonBlockingImpl(nonBlocking: Boolean): Result<Unit>
 
