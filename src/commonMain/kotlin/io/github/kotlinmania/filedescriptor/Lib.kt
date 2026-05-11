@@ -1,8 +1,6 @@
 // port-lint: source src/lib.rs
 package io.github.kotlinmania.filedescriptor
 
-import kotlin.time.Duration
-
 /**
  * The purpose of this crate is to make it a bit more ergonomic for portable
  * applications that need to work with the platform level `RawFd` and
@@ -263,42 +261,8 @@ class OwnedHandle internal constructor(
                 handleType = probeHandleType(handle),
             )
         }
-
-        /**
-         * Attempt to duplicate the underlying handle from an object that is
-         * representable as the system `RawFileDescriptor` type and return an
-         * [OwnedHandle] wrapped around the duplicate.  Since the duplication
-         * requires kernel resources that may not be available, this is a
-         * potentially fallible operation.
-         * The returned handle has a separate lifetime from the source, but
-         * references the same object at the kernel level.
-         */
-        fun <F : AsRawFileDescriptor> dup(f: F): Result<OwnedHandle> {
-            return ownedHandleDupImpl(f, defaultHandleType())
-        }
-    }
-
-    /**
-     * Attempt to duplicate the underlying handle and return an
-     * [OwnedHandle] wrapped around the duplicate.  Since the duplication
-     * requires kernel resources that may not be available, this is a
-     * potentially fallible operation.
-     * The returned handle has a separate lifetime from the source, but
-     * references the same object at the kernel level.
-     */
-    fun tryClone(): Result<OwnedHandle> {
-        return ownedHandleDupImpl(this, this.handleType)
     }
 }
-
-/**
- * Platform-specific duplication primitive used by [OwnedHandle.dup] and
- * [OwnedHandle.tryClone]. Defined per-target by `unix.rs` / `windows.rs`.
- */
-internal expect fun <F : AsRawFileDescriptor> ownedHandleDupImpl(
-    f: F,
-    handleType: HandleType,
-): Result<OwnedHandle>
 
 /**
  * [FileDescriptor] is a thin wrapper on top of the [OwnedHandle] type that
@@ -336,64 +300,8 @@ class FileDescriptor internal constructor(
             val handle = OwnedHandle.new(f)
             return FileDescriptor(handle)
         }
-
-        /**
-         * Attempt to duplicate the underlying handle from an object that is
-         * representable as the system `RawFileDescriptor` type and return a
-         * [FileDescriptor] wrapped around the duplicate.  Since the duplication
-         * requires kernel resources that may not be available, this is a
-         * potentially fallible operation.
-         * The returned handle has a separate lifetime from the source, but
-         * references the same object at the kernel level.
-         */
-        fun <F : AsRawFileDescriptor> dup(f: F): Result<FileDescriptor> {
-            return OwnedHandle.dup(f).map { handle -> FileDescriptor(handle) }
-        }
-
-        /**
-         * Attempt to redirect stdio to the underlying handle and return
-         * a [FileDescriptor] wrapped around the original stdio source.
-         * Since the redirection requires kernel resources that may not be
-         * available, this is a potentially fallible operation.
-         * Supports stdin, stdout, and stderr redirections.
-         */
-        fun <F : AsRawFileDescriptor> redirectStdio(
-            f: F,
-            stdio: StdioDescriptor,
-        ): Result<FileDescriptor> {
-            return fileDescriptorRedirectStdioImpl(f, stdio)
-        }
     }
-
-    /**
-     * Attempt to duplicate the underlying handle and return a
-     * [FileDescriptor] wrapped around the duplicate.  Since the duplication
-     * requires kernel resources that may not be available, this is a
-     * potentially fallible operation.
-     * The returned handle has a separate lifetime from the source, but
-     * references the same object at the kernel level.
-     */
-    fun tryClone(): Result<FileDescriptor> {
-        return handle.tryClone().map { dup -> FileDescriptor(dup) }
-    }
-
-    /**
-     * Attempt to change the non-blocking IO mode of the file descriptor.
-     * Not all kinds of file descriptor can be placed in non-blocking mode
-     * on all systems, and some file descriptors will claim to be in
-     * non-blocking mode but it will have no effect.
-     * File descriptors based on sockets are the most portable type
-     * that can be successfully made non-blocking.
-     */
-    fun setNonBlocking(nonBlocking: Boolean): Result<Unit> = setNonBlockingImpl(nonBlocking)
 }
-
-internal expect fun FileDescriptor.setNonBlockingImpl(nonBlocking: Boolean): Result<Unit>
-
-internal expect fun <F : AsRawFileDescriptor> fileDescriptorRedirectStdioImpl(
-    f: F,
-    stdio: StdioDescriptor,
-): Result<FileDescriptor>
 
 enum class StdioDescriptor {
     Stdin,
@@ -421,44 +329,3 @@ class Pipe(
     val write: FileDescriptor,
 )
 
-/**
- * Examines a set of FileDescriptors to see if some of them are ready for I/O,
- * or if certain events have occurred on them.
- *
- * This uses the system native readiness checking mechanism, which on Windows
- * means that it does NOT use IOCP and that this only works with sockets on
- * Windows.  If you need IOCP then the `mio` crate is recommended for a much
- * more scalable solution.
- *
- * On macOS, the `poll(2)` implementation has problems when used with eg: pty
- * descriptors, so this implementation of poll uses the `select(2)` interface
- * under the covers.  That places a limit on the maximum file descriptor value
- * that can be passed to poll.  If a file descriptor is out of range then an
- * error will returned.  This limitation could potentially be lifted in the
- * future.
- *
- * On Windows, `WSAPoll` is used to implement readiness checking, which has
- * the consequence that it can only be used with sockets.
- *
- * If [duration] is `null`, then [poll] will block until any of the requested
- * events are ready.  Otherwise, [duration] specifies how long to wait for
- * readiness before giving up.
- *
- * The return value is the number of entries that were satisfied; `0` means
- * that none were ready after waiting for the specified duration.
- *
- * The [pfd] array is mutated and the `revents` field is updated to indicate
- * which of the events were received.
- */
-fun poll(pfd: MutableList<Pollfd>, duration: Duration?): Result<Int> = pollImpl(pfd, duration)
-
-internal expect fun pollImpl(pfd: MutableList<Pollfd>, duration: Duration?): Result<Int>
-
-/**
- * Create a pair of connected sockets.
- *
- * This implementation creates a pair of `SOCK_STREAM` sockets.
- */
-fun socketpair(): Result<Pair<FileDescriptor, FileDescriptor>> = socketpairImpl()
-
-internal expect fun socketpairImpl(): Result<Pair<FileDescriptor, FileDescriptor>>
