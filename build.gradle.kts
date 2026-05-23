@@ -199,7 +199,11 @@ kotlin {
         binaries.framework { baseName = "Filedescriptor"; xcf.add(this) }
     }
     iosSimulatorArm64 {
-        binaries.framework { baseName = "Filedescriptor"; xcf.add(this) }
+        binaries.framework {
+            baseName = "Filedescriptor"
+            isStatic = true
+            xcf.add(this)
+        }
     }
     iosX64 {
         binaries.framework { baseName = "Filedescriptor"; xcf.add(this) }
