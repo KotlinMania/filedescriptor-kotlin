@@ -218,7 +218,12 @@ interface IntoRawFileDescriptor {
  * the upstream `unsafe fn` documents: the caller must ensure that it
  * is used appropriately.
  */
-interface FromRawFileDescriptor<T> {
+// Marked `internal` so the Swift Export bridge does not emit an
+// `Unchecked cast of 'Any?' to 'FromRawFileDescriptor<Any?>'` warning
+// against the receiver of `fromRawFileDescriptor`. The interface has no
+// in-tree implementers; downstream Kotlin callers that need it can be
+// reintroduced behind a non-generic façade when they materialize.
+internal interface FromRawFileDescriptor<T> {
     fun fromRawFileDescriptor(fd: RawFileDescriptor): T
 }
 
@@ -230,7 +235,10 @@ interface IntoRawSocketDescriptor {
     fun intoSocketDescriptor(): SocketDescriptor
 }
 
-interface FromRawSocketDescriptor<T> {
+// Same rationale as [FromRawFileDescriptor]: marked `internal` so the
+// Swift Export bridge does not emit unchecked-cast warnings against the
+// receiver.
+internal interface FromRawSocketDescriptor<T> {
     fun fromSocketDescriptor(fd: SocketDescriptor): T
 }
 
