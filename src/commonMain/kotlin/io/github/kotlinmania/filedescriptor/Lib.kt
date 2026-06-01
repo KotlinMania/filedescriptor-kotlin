@@ -1,5 +1,9 @@
+@file:OptIn(kotlin.experimental.ExperimentalObjCRefinement::class)
+
 // port-lint: source src/lib.rs
 package io.github.kotlinmania.filedescriptor
+
+import kotlin.native.HiddenFromObjC
 
 /**
  * The purpose of this crate is to make it a bit more ergonomic for portable
@@ -129,65 +133,85 @@ const val POLLHUP: Short = 0x0010
  * [socketpair]. The variant naming and message formatting mirror the
  * upstream `thiserror`-derived `Error` enum.
  */
+@HiddenFromObjC
 sealed class Error(message: String, cause: Throwable? = null) : Throwable(message, cause) {
     /** failed to create a pipe */
+    @HiddenFromObjC
     class Pipe(cause: Throwable) : Error("failed to create a pipe", cause)
 
     /** failed to create a socketpair */
+    @HiddenFromObjC
     class Socketpair(cause: Throwable) : Error("failed to create a socketpair", cause)
 
     /** failed to create a socket */
+    @HiddenFromObjC
     class Socket(cause: Throwable) : Error("failed to create a socket", cause)
 
     /** failed to bind a socket */
+    @HiddenFromObjC
     class Bind(cause: Throwable) : Error("failed to bind a socket", cause)
 
     /** failed to fetch socket name */
+    @HiddenFromObjC
     class Getsockname(cause: Throwable) : Error("failed to fetch socket name", cause)
 
     /** failed to set socket to listen mode */
+    @HiddenFromObjC
     class Listen(cause: Throwable) : Error("failed to set socket to listen mode", cause)
 
     /** failed to connect socket */
+    @HiddenFromObjC
     class Connect(cause: Throwable) : Error("failed to connect socket", cause)
 
     /** failed to accept socket */
+    @HiddenFromObjC
     class Accept(cause: Throwable) : Error("failed to accept socket", cause)
 
     /** fcntl read failed */
+    @HiddenFromObjC
     class Fcntl(cause: Throwable) : Error("fcntl read failed", cause)
 
     /** failed to set cloexec */
+    @HiddenFromObjC
     class Cloexec(cause: Throwable) : Error("failed to set cloexec", cause)
 
     /** failed to change non-blocking mode */
+    @HiddenFromObjC
     class FionBio(cause: Throwable) : Error("failed to change non-blocking mode", cause)
 
     /** poll failed */
+    @HiddenFromObjC
     class Poll(cause: Throwable) : Error("poll failed", cause)
 
     /** dup of fd `fd` failed */
+    @HiddenFromObjC
     class Dup(val fd: Long, cause: Throwable) : Error("dup of fd $fd failed", cause)
 
     /** dup of fd `srcFd` to fd `destFd` failed */
+    @HiddenFromObjC
     class Dup2(val srcFd: Long, val destFd: Long, cause: Throwable) :
         Error("dup of fd $srcFd to fd $destFd failed", cause)
 
     /** Illegal fd value */
+    @HiddenFromObjC
     class IllegalFdValue(val fd: Long) : Error("Illegal fd value $fd")
 
     /** fd value too large to use with select(2) */
+    @HiddenFromObjC
     class FdValueOutsideFdSetSize(val fd: Long) :
         Error("fd value $fd too large to use with select(2)")
 
     /** Only socket descriptors can change their non-blocking mode on Windows */
+    @HiddenFromObjC
     object OnlySocketsNonBlocking :
         Error("Only socket descriptors can change their non-blocking mode on Windows")
 
     /** SetStdHandle failed */
+    @HiddenFromObjC
     class SetStdHandle(cause: Throwable) : Error("SetStdHandle failed", cause)
 
     /** IoError */
+    @HiddenFromObjC
     class Io(cause: Throwable) : Error("IoError", cause)
 }
 
