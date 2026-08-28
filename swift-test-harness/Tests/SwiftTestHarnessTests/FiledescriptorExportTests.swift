@@ -1,4 +1,4 @@
-import XCTest
+import Testing
 import Filedescriptor
 
 // Smoke test for the Kotlin → Swift Export → SPM → swift test pipeline.
@@ -24,12 +24,9 @@ import Filedescriptor
 //      build.gradle.kts produced a module name that's both syntactically
 //      valid as a Swift identifier and reachable from this Package.swift
 //      via the `FiledescriptorLibrary` product.
-//
-// Add more meaningful per-API tests below as the Swift Export surface
-// grows. For now the import + a single passing assertion is the
-// canary that the pipeline is green for this repo.
-final class FiledescriptorExportTests: XCTestCase {
-    func testSwiftModuleLoads() throws {
-        XCTAssertTrue(true, "Filedescriptor swift module imported cleanly")
+@Suite struct FiledescriptorExportTests {
+    @Test func swiftModuleLoads() {
+        #expect(Bool(true))
     }
 }
+
