@@ -1,27 +1,26 @@
 @file:OptIn(kotlin.experimental.ExperimentalObjCRefinement::class)
 
-// port-lint: source src/lib.rs
+// port-lint: source lib.rs
 package io.github.kotlinmania.filedescriptor
 
 import kotlin.native.HiddenFromObjC
+import kotlin.time.Duration
 
 /**
- * The purpose of this crate is to make it a bit more ergonomic for portable
- * applications that need to work with the platform level `RawFd` and
- * `RawHandle` types.
+ * The purpose of this package is to make it convenient for portable
+ * applications that need to work with platform-level raw file descriptors
+ * and handles.
  *
- * Rather than conditionally using `RawFd` and `RawHandle`, the [FileDescriptor]
+ * Rather than conditionally using platform descriptors, the [FileDescriptor]
  * type can be used to manage ownership, duplicate, read and write.
  *
  * ## FileDescriptor
  *
- * This is a bit of a contrived example, but demonstrates how to avoid
- * the conditional code that would otherwise be required to deal with
- * calling `as_raw_fd` and `as_raw_handle`:
+ * Demonstrates avoiding conditional code when dealing with platform descriptors:
  *
  * ```
  * fun getStdout(): Result<FileDescriptor> {
- *     val stdout = systemStdout()
+ *     val stdout = FileDescriptor.new(1L)
  *     return FileDescriptor.dup(stdout)
  * }
  *
@@ -31,39 +30,33 @@ import kotlin.native.HiddenFromObjC
  * ```
  *
  * ## Pipe
- * The [Pipe] type makes it more convenient to create a pipe and manage
- * the lifetime of both the read and write ends of that pipe.
+ * The [Pipe] type makes it convenient to create a pipe and manage
+ * the lifecycle of both the read and write ends of that pipe.
  *
  * ```
  * val pipe = Pipe.new().getOrThrow()
  * pipe.write.write("hello".encodeToByteArray())
  * pipe.write.close()
  *
- * val s = pipe.read.readToString()
+ * val s = pipe.read.readToString().getOrThrow()
  * check(s == "hello")
  * ```
  *
  * ## Socketpair
- * The [socketpair] function returns a pair of connected `SOCK_STREAM`
- * sockets and functions both on posix and windows systems.
+ * The [socketpair] function returns a pair of connected stream
+ * sockets and functions across platforms.
  *
  * ```
  * val (a, b) = socketpair().getOrThrow()
  * a.write("hello".encodeToByteArray())
  * a.close()
  *
- * val s = b.readToString()
+ * val s = b.readToString().getOrThrow()
  * check(s == "hello")
  * ```
  *
  * ## Polling
- * The `mio` crate offers powerful and scalable IO multiplexing, but there
- * are some situations where `mio` doesn't fit.  The `filedescriptor` crate
- * offers a `poll(2)` compatible interface suitable for testing the readiness
- * of a set of file descriptors.  On unix systems this is a very thin wrapper
- * around `poll(2)`, except on macOS where it is actually a wrapper around
- * the `select(2)` interface.  On Windows systems the winsock `WSAPoll`
- * function is used instead.
+ * Polling offers readiness testing of a set of file descriptors:
  *
  * ```
  * val (a, b) = socketpair().getOrThrow()
@@ -72,181 +65,135 @@ import kotlin.native.HiddenFromObjC
  *     events = POLLIN,
  *     revents = 0,
  * ))
- * // sleeps for 20 milliseconds because `a` is not yet ready
  * check(poll(pollArray, Duration.parse("20ms")).getOrThrow() == 0)
  *
  * b.write("hello".encodeToByteArray())
- *
- * // Now a is ready for read
  * check(poll(pollArray, Duration.parse("20ms")).getOrThrow() == 1)
  * ```
  */
 
 /**
- * `RawFileDescriptor` is a platform independent type alias for the
- * underlying platform file descriptor type.  It is primarily useful
- * for avoiding using platform-conditional blocks in platform independent code.
- *
- * The underlying width is wide enough to carry both a unix `RawFd` (signed
- * 32-bit integer) and a Windows `RawHandle` (pointer-sized integer).
+ * Platform-independent type alias for the underlying platform file descriptor type.
  */
 typealias RawFileDescriptor = Long
 
 /**
- * `SocketDescriptor` is a platform independent type alias for the
- * underlying platform socket descriptor type.  It is primarily useful
- * for avoiding using platform-conditional blocks in platform independent code.
+ * Platform-independent type alias for the underlying platform socket descriptor type.
  */
 typealias SocketDescriptor = Long
 
 /**
- * Internal classifier carried by [OwnedHandle] to remember whether a handle
- * refers to a character device, disk file, pipe, socket, or other kernel
- * object. On unix this is always [Unknown] because the unix syscalls don't
- * need the distinction.
+ * Internal classifier carried by [OwnedHandle] to record handle category.
  */
-internal enum class HandleType {
-    Unknown,
+enum class HandleType {
     Char,
     Disk,
     Pipe,
     Socket,
+    Unknown,
 }
 
-internal fun defaultHandleType(): HandleType = HandleType.Unknown
+fun defaultHandleType(): HandleType = HandleType.Unknown
 
-internal fun probeHandleType(handle: RawFileDescriptor): HandleType = HandleType.Unknown
+fun probeHandleType(handle: RawFileDescriptor): HandleType = probeHandleTypePlatform(handle)
 
 class Pollfd(
     var fd: SocketDescriptor,
     var events: Short,
-    var revents: Short,
+    var revents: Short = 0,
 )
 
 const val POLLIN: Short = 0x0001
 const val POLLOUT: Short = 0x0004
 const val POLLERR: Short = 0x0008
 const val POLLHUP: Short = 0x0010
+const val POLLPRI: Short = 0x0002
+const val POLLNVAL: Short = 0x0020
 
 /**
  * Errors raised by [FileDescriptor], [OwnedHandle], [Pipe], [poll], and
- * [socketpair]. The variant naming and message formatting mirror the
- * upstream `thiserror`-derived `Error` enum.
+ * [socketpair].
  */
 @HiddenFromObjC
 sealed class Error(message: String, cause: Throwable? = null) : Throwable(message, cause) {
-    /** failed to create a pipe */
     @HiddenFromObjC
     class Pipe(cause: Throwable) : Error("failed to create a pipe", cause)
 
-    /** failed to create a socketpair */
     @HiddenFromObjC
     class Socketpair(cause: Throwable) : Error("failed to create a socketpair", cause)
 
-    /** failed to create a socket */
     @HiddenFromObjC
     class Socket(cause: Throwable) : Error("failed to create a socket", cause)
 
-    /** failed to bind a socket */
     @HiddenFromObjC
     class Bind(cause: Throwable) : Error("failed to bind a socket", cause)
 
-    /** failed to fetch socket name */
     @HiddenFromObjC
     class Getsockname(cause: Throwable) : Error("failed to fetch socket name", cause)
 
-    /** failed to set socket to listen mode */
     @HiddenFromObjC
     class Listen(cause: Throwable) : Error("failed to set socket to listen mode", cause)
 
-    /** failed to connect socket */
     @HiddenFromObjC
     class Connect(cause: Throwable) : Error("failed to connect socket", cause)
 
-    /** failed to accept socket */
     @HiddenFromObjC
     class Accept(cause: Throwable) : Error("failed to accept socket", cause)
 
-    /** fcntl read failed */
     @HiddenFromObjC
     class Fcntl(cause: Throwable) : Error("fcntl read failed", cause)
 
-    /** failed to set cloexec */
     @HiddenFromObjC
     class Cloexec(cause: Throwable) : Error("failed to set cloexec", cause)
 
-    /** failed to change non-blocking mode */
     @HiddenFromObjC
     class FionBio(cause: Throwable) : Error("failed to change non-blocking mode", cause)
 
-    /** poll failed */
     @HiddenFromObjC
     class Poll(cause: Throwable) : Error("poll failed", cause)
 
-    /** dup of fd `fd` failed */
     @HiddenFromObjC
     class Dup(val fd: Long, cause: Throwable) : Error("dup of fd $fd failed", cause)
 
-    /** dup of fd `srcFd` to fd `destFd` failed */
     @HiddenFromObjC
     class Dup2(val srcFd: Long, val destFd: Long, cause: Throwable) :
         Error("dup of fd $srcFd to fd $destFd failed", cause)
 
-    /** Illegal fd value */
     @HiddenFromObjC
     class IllegalFdValue(val fd: Long) : Error("Illegal fd value $fd")
 
-    /** fd value too large to use with select(2) */
     @HiddenFromObjC
     class FdValueOutsideFdSetSize(val fd: Long) :
         Error("fd value $fd too large to use with select(2)")
 
-    /** Only socket descriptors can change their non-blocking mode on Windows */
     @HiddenFromObjC
-    object OnlySocketsNonBlocking :
+    data object OnlySocketsNonBlocking :
         Error("Only socket descriptors can change their non-blocking mode on Windows")
 
-    /** SetStdHandle failed */
     @HiddenFromObjC
     class SetStdHandle(cause: Throwable) : Error("SetStdHandle failed", cause)
 
-    /** IoError */
     @HiddenFromObjC
     class Io(cause: Throwable) : Error("IoError", cause)
 }
 
-typealias Result<T> = kotlin.Result<T>
 
 /**
- * `AsRawFileDescriptor` is a platform independent trait for returning
- * a non-owning reference to the underlying platform file descriptor
- * type.
+ * Platform-independent interface returning a non-owning reference to the
+ * underlying platform file descriptor.
  */
 interface AsRawFileDescriptor {
     fun asRawFileDescriptor(): RawFileDescriptor
 }
 
 /**
- * `IntoRawFileDescriptor` is a platform independent trait for converting
- * an instance into the underlying platform file descriptor type.
+ * Platform-independent interface converting an instance into the
+ * underlying platform file descriptor.
  */
 interface IntoRawFileDescriptor {
     fun intoRawFileDescriptor(): RawFileDescriptor
 }
 
-/**
- * `FromRawFileDescriptor` is a platform independent trait for creating
- * an instance from the underlying platform file descriptor type.
- * Because the platform file descriptor type has no inherent ownership
- * management, the [fromRawFileDescriptor] function takes the same care
- * the upstream `unsafe fn` documents: the caller must ensure that it
- * is used appropriately.
- */
-// Marked `internal` so the Swift Export bridge does not emit an
-// `Unchecked cast of 'Any?' to 'FromRawFileDescriptor<Any?>'` warning
-// against the receiver of `fromRawFileDescriptor`. The interface has no
-// in-tree implementers; downstream Kotlin callers that need it can be
-// reintroduced behind a non-generic façade when they materialize.
 internal interface FromRawFileDescriptor<T> {
     fun fromRawFileDescriptor(fd: RawFileDescriptor): T
 }
@@ -259,32 +206,43 @@ interface IntoRawSocketDescriptor {
     fun intoSocketDescriptor(): SocketDescriptor
 }
 
-// Same rationale as [FromRawFileDescriptor]: marked `internal` so the
-// Swift Export bridge does not emit unchecked-cast warnings against the
-// receiver.
 internal interface FromRawSocketDescriptor<T> {
     fun fromSocketDescriptor(fd: SocketDescriptor): T
 }
 
 /**
- * [OwnedHandle] allows managing the lifetime of the platform `RawFileDescriptor`
- * type.  It is exposed in the interface of this crate primarily for convenience
- * on Windows where the system handle type is used for a variety of objects
- * that don't support reading and writing.
+ * [OwnedHandle] manages the lifecycle of the platform [RawFileDescriptor] type.
  */
-class OwnedHandle internal constructor(
-    internal var handle: RawFileDescriptor,
-    internal var handleType: HandleType,
-) : AsRawFileDescriptor, IntoRawFileDescriptor {
+class OwnedHandle(
+    var handle: RawFileDescriptor,
+    var handleType: HandleType = HandleType.Unknown,
+) : AsRawFileDescriptor, IntoRawFileDescriptor, AutoCloseable {
+
+    private var isClosed = false
+
     override fun asRawFileDescriptor(): RawFileDescriptor = handle
 
-    override fun intoRawFileDescriptor(): RawFileDescriptor = handle
+    override fun intoRawFileDescriptor(): RawFileDescriptor {
+        isClosed = true
+        return handle
+    }
+
+    /**
+     * Attempt to duplicate the underlying handle and return an [OwnedHandle]
+     * wrapped around the duplicate.
+     */
+    fun tryClone(): Result<OwnedHandle> = dupImpl(this, handleType)
+
+    override fun close() {
+        if (!isClosed) {
+            isClosed = true
+            closeHandlePlatform(handle, handleType)
+        }
+    }
 
     companion object {
         /**
-         * Create a new handle from some object that is convertible into
-         * the system `RawFileDescriptor` type.  This consumes the parameter
-         * and replaces it with an [OwnedHandle] instance.
+         * Create a new handle from an object convertible to [RawFileDescriptor].
          */
         fun <F : IntoRawFileDescriptor> new(f: F): OwnedHandle {
             val handle = f.intoRawFileDescriptor()
@@ -293,44 +251,133 @@ class OwnedHandle internal constructor(
                 handleType = probeHandleType(handle),
             )
         }
+
+        fun fromRaw(handle: RawFileDescriptor, handleType: HandleType = HandleType.Unknown): OwnedHandle {
+            return OwnedHandle(
+                handle = handle,
+                handleType = if (handleType == HandleType.Unknown) probeHandleType(handle) else handleType,
+            )
+        }
+
+        /**
+         * Attempt to duplicate the underlying handle from an object representable
+         * as [RawFileDescriptor].
+         */
+        fun <F : AsRawFileDescriptor> dup(f: F): Result<OwnedHandle> {
+            return dupImpl(f, HandleType.Unknown)
+        }
     }
 }
 
 /**
- * [FileDescriptor] is a thin wrapper on top of the [OwnedHandle] type that
- * exposes the ability to Read and Write to the platform `RawFileDescriptor`.
- *
- * This is a bit of a contrived example, but demonstrates how to avoid
- * the conditional code that would otherwise be required to deal with
- * calling `as_raw_fd` and `as_raw_handle`:
- *
- * ```
- * fun getStdout(): Result<FileDescriptor> {
- *     val stdout = systemStdout()
- *     return FileDescriptor.dup(stdout)
- * }
- *
- * fun printSomething(): Result<Unit> {
- *     return getStdout().mapCatching { it.write("hello".encodeToByteArray()) }
- * }
- * ```
+ * [FileDescriptor] is a wrapper on top of [OwnedHandle] exposing read and write operations.
  */
-class FileDescriptor internal constructor(
-    internal val handle: OwnedHandle,
-) : AsRawFileDescriptor, IntoRawFileDescriptor {
+class FileDescriptor(
+    val handle: OwnedHandle,
+) : AsRawFileDescriptor, IntoRawFileDescriptor, AsRawSocketDescriptor, IntoRawSocketDescriptor, AutoCloseable {
+
     override fun asRawFileDescriptor(): RawFileDescriptor = handle.asRawFileDescriptor()
 
     override fun intoRawFileDescriptor(): RawFileDescriptor = handle.intoRawFileDescriptor()
 
+    override fun asSocketDescriptor(): SocketDescriptor = handle.asRawFileDescriptor()
+
+    override fun intoSocketDescriptor(): SocketDescriptor = handle.intoRawFileDescriptor()
+
+    /**
+     * Attempt to duplicate the underlying handle and return a [FileDescriptor]
+     * wrapped around the duplicate.
+     */
+    fun tryClone(): Result<FileDescriptor> {
+        return handle.tryClone().map { FileDescriptor(it) }
+    }
+
+    /**
+     * Create a standard I/O representation for process redirection.
+     */
+    fun asStdio(): Result<Any?> {
+        return asStdioPlatform(this)
+    }
+
+    /**
+     * Create a file representation using a duplicated handle.
+     */
+    fun asFile(): Result<Any?> {
+        return asFilePlatform(this)
+    }
+
+    /**
+     * Attempt to change the non-blocking I/O mode.
+     */
+    fun setNonBlocking(nonBlocking: Boolean): Result<Unit> {
+        return setNonBlockingPlatform(this, nonBlocking)
+    }
+
+    /**
+     * Read bytes from the descriptor into [buf].
+     */
+    fun read(buf: ByteArray, offset: Int = 0, length: Int = buf.size - offset): Result<Int> {
+        return readPlatform(handle.asRawFileDescriptor(), handle.handleType, buf, offset, length)
+    }
+
+    /**
+     * Write bytes from [buf] to the descriptor.
+     */
+    fun write(buf: ByteArray, offset: Int = 0, length: Int = buf.size - offset): Result<Int> {
+        return writePlatform(handle.asRawFileDescriptor(), handle.handleType, buf, offset, length)
+    }
+
+    /**
+     * Flush buffered data.
+     */
+    fun flush(): Result<Unit> {
+        return flushPlatform(handle.asRawFileDescriptor())
+    }
+
+    /**
+     * Read all remaining bytes into a UTF-8 string.
+     */
+    fun readToString(): Result<String> {
+        return readToStringPlatform(this)
+    }
+
+    override fun close() {
+        handle.close()
+    }
+
     companion object {
         /**
-         * Create a new descriptor from some object that is convertible into
-         * the system `RawFileDescriptor` type.  This consumes the parameter
-         * and replaces it with a [FileDescriptor] instance.
+         * Create a new descriptor from an object convertible to [RawFileDescriptor].
          */
         fun <F : IntoRawFileDescriptor> new(f: F): FileDescriptor {
             val handle = OwnedHandle.new(f)
             return FileDescriptor(handle)
+        }
+
+        fun fromRaw(rawFd: RawFileDescriptor): FileDescriptor {
+            return FileDescriptor(OwnedHandle.fromRaw(rawFd))
+        }
+
+        /**
+         * Attempt to duplicate the underlying handle from an object representable
+         * as [RawFileDescriptor].
+         */
+        fun <F : AsRawFileDescriptor> dup(f: F): Result<FileDescriptor> {
+            return OwnedHandle.dup(f).map { FileDescriptor(it) }
+        }
+
+        /**
+         * Duplicate descriptor to a specific target descriptor number.
+         */
+        fun <F : AsRawFileDescriptor> dup2(f: F, destFd: RawFileDescriptor): Result<FileDescriptor> {
+            return dup2Platform(f, destFd).map { FileDescriptor(it) }
+        }
+
+        /**
+         * Redirect standard I/O to the specified descriptor.
+         */
+        fun <F : AsRawFileDescriptor> redirectStdio(f: F, stdio: StdioDescriptor): Result<FileDescriptor> {
+            return redirectStdioPlatform(f, stdio)
         }
     }
 }
@@ -342,22 +389,46 @@ enum class StdioDescriptor {
 }
 
 /**
- * Represents the readable and writable ends of a pair of descriptors
- * connected via a kernel pipe.
- *
- * ```
- * val pipe = Pipe.new().getOrThrow()
- * pipe.write.write("hello".encodeToByteArray())
- * pipe.write.close()
- *
- * val s = pipe.read.readToString()
- * check(s == "hello")
- * ```
+ * Represents the readable and writable ends of a pipe.
  */
 class Pipe(
-    /** The readable end of the pipe */
     val read: FileDescriptor,
-    /** The writable end of the pipe */
     val write: FileDescriptor,
-)
+) : AutoCloseable {
 
+    override fun close() {
+        try {
+            read.close()
+        } finally {
+            write.close()
+        }
+    }
+
+    companion object {
+        /**
+         * Create a new unidirectional pipe pair.
+         */
+        fun new(): Result<Pipe> = createPipePlatform()
+    }
+}
+
+/**
+ * Examines a set of file descriptors for readiness.
+ */
+fun poll(pfd: List<Pollfd>, duration: Duration? = null): Result<Int> {
+    return pollPlatform(pfd, duration)
+}
+
+/**
+ * Examines an array of file descriptors for readiness.
+ */
+fun poll(pfd: Array<Pollfd>, duration: Duration? = null): Result<Int> {
+    return pollPlatform(pfd.toList(), duration)
+}
+
+/**
+ * Create a pair of connected stream sockets.
+ */
+fun socketpair(): Result<Pair<FileDescriptor, FileDescriptor>> {
+    return socketpairPlatform()
+}
