@@ -119,8 +119,9 @@ class PollTest {
                 val fd = Pollfd(reader.asSocketDescriptor(), events)
                 assertEquals(if (Platform.osFamily == OsFamily.MACOSX) 2 else 1, poll(listOf(fd), 50.milliseconds).getOrThrow())
                 assertEquals(events, fd.revents)
+                val isDarwin = Platform.osFamily in setOf(OsFamily.MACOSX, OsFamily.IOS, OsFamily.WATCHOS, OsFamily.TVOS)
                 assertEquals(
-                    if (Platform.osFamily == OsFamily.MACOSX) 1 else 2,
+                    if (isDarwin) 1 else 2,
                     poll(listOf(Pollfd(fd.fd, POLLIN), Pollfd(fd.fd, POLLIN)), Duration.ZERO).getOrThrow(),
                 )
             }
