@@ -145,7 +145,7 @@ class PollTest {
         val item = Pollfd(fd, POLLIN)
         val result = poll(listOf(item), Duration.ZERO)
         if (Platform.osFamily == OsFamily.MACOSX) {
-            val cause = assertIs<SystemIoException>(assertIs<Error.Io>(result.exceptionOrNull()).cause)
+            val cause = assertIs<SystemIoException>(assertIs<FileDescriptorError.Io>(result.exceptionOrNull()).cause)
             assertEquals(constants.ebadf, cause.errorCode)
             assertEquals(false, cause.interrupted)
         } else {
@@ -156,10 +156,10 @@ class PollTest {
 
     @Test
     fun validatesDescriptorWidthsAndSelectBounds() {
-        assertIs<Error.IllegalFdValue>(poll(listOf(Pollfd(Long.MAX_VALUE, POLLIN)), Duration.ZERO).exceptionOrNull())
+        assertIs<FileDescriptorError.IllegalFdValue>(poll(listOf(Pollfd(Long.MAX_VALUE, POLLIN)), Duration.ZERO).exceptionOrNull())
         if (Platform.osFamily == OsFamily.MACOSX) {
-            assertIs<Error.IllegalFdValue>(poll(listOf(Pollfd(-1, POLLIN)), Duration.ZERO).exceptionOrNull())
-            assertIs<Error.FdValueOutsideFdSetSize>(
+            assertIs<FileDescriptorError.IllegalFdValue>(poll(listOf(Pollfd(-1, POLLIN)), Duration.ZERO).exceptionOrNull())
+            assertIs<FileDescriptorError.FdValueOutsideFdSetSize>(
                 poll(listOf(Pollfd(libc_fd_setsize().toLong(), POLLIN)), Duration.ZERO).exceptionOrNull(),
             )
         } else {

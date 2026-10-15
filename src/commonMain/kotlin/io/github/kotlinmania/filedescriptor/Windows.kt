@@ -66,7 +66,7 @@ fun setNonBlockingImplWindows(fd: FileDescriptor, nonBlocking: Boolean): Result<
     if (isSocketHandle(fd.asRawFileDescriptor(), fd.handle.handleType)) {
         Result.success(Unit)
     } else {
-        Result.failure(Error.OnlySocketsNonBlocking)
+        Result.failure(FileDescriptorError.OnlySocketsNonBlocking)
     }
 
 fun redirectStdioImplWindows(f: AsRawFileDescriptor, stdio: StdioDescriptor): Result<FileDescriptor> = redirectStdioImpl(f, stdio)

@@ -58,7 +58,7 @@ class PollWakeTest {
             Pipe.new().getOrThrow().use { pipe ->
                 withDelayedAction({ assertEquals(0, libc_pthread_kill(target, constants.sigusr1)) }) {
                     val result = poll(listOf(Pollfd(pipe.read.asRawFileDescriptor(), POLLIN)), 2.seconds)
-                    val cause = assertIs<SystemIoException>(assertIs<Error.Io>(result.exceptionOrNull()).cause)
+                    val cause = assertIs<SystemIoException>(assertIs<FileDescriptorError.Io>(result.exceptionOrNull()).cause)
                     assertEquals(constants.eintr, cause.errorCode)
                     assertTrue(cause.interrupted)
                 }

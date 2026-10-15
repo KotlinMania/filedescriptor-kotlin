@@ -11,10 +11,10 @@ class FdSet {
 
     fun checkFd(fd: Long): Result<Unit> {
         if (fd < 0) {
-            return Result.failure(Error.IllegalFdValue(fd))
+            return Result.failure(FileDescriptorError.IllegalFdValue(fd))
         }
         if (fd >= 1024) {
-            return Result.failure(Error.FdValueOutsideFdSetSize(fd))
+            return Result.failure(FileDescriptorError.FdValueOutsideFdSetSize(fd))
         }
         return Result.success(Unit)
     }
