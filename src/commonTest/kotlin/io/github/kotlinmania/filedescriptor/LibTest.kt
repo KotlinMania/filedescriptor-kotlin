@@ -1,10 +1,10 @@
 // port-lint: tests windows.rs
 package io.github.kotlinmania.filedescriptor
 
+import io.github.kotlinmania.libc.time.StdDuration
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
-import kotlin.time.Duration
 
 class LibTest {
     @Test
@@ -44,11 +44,11 @@ class LibTest {
                     revents = 0,
                 ),
             )
-        val readyBefore = poll(pollArray, Duration.parse("20ms")).getOrThrow()
+        val readyBefore = poll(pollArray, StdDuration.fromMillis(20u)).getOrThrow()
         assertEquals(0, readyBefore)
 
         b.write("hello".encodeToByteArray()).getOrThrow()
-        val readyAfter = poll(pollArray, Duration.parse("20ms")).getOrThrow()
+        val readyAfter = poll(pollArray, StdDuration.fromMillis(20u)).getOrThrow()
         assertEquals(1, readyAfter)
         assertTrue((pollArray[0].revents.toInt() and POLLIN.toInt()) != 0)
     }

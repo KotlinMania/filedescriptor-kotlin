@@ -364,15 +364,6 @@ tasks
         dependsOn(ensureAndroidSdk)
     }
 
-// Gap #9b: KGP-generated bridge boilerplate and KotlinCoroutineSupport runtime
-// produce warnings (unchecked casts, unused expressions, opt-in requirements)
-// that cannot be fixed in source — they are regenerated every build.
-tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompilationTask<*>>().configureEach {
-    if (name.startsWith("compileSwiftExport")) {
-        compilerOptions.allWarningsAsErrors.set(false)
-    }
-}
-
 val jvmToolchainVersion = providers.gradleProperty("jvm.toolchain").getOrElse("21").toInt()
 
 // ============================================================================
@@ -500,10 +491,6 @@ kotlin {
     swiftExport {
         moduleName = frameworkName
         flattenPackage = projectNamespace
-        @OptIn(org.jetbrains.kotlin.gradle.swiftexport.ExperimentalSwiftExportDsl::class)
-        configure {
-            settings.put("enableCoroutinesSupport", "true")
-        }
     }
 
     // Android KMP library. Block name is `android` — `androidLibrary` is deprecated in current KGP.
@@ -790,11 +777,12 @@ kotlin {
         listOf("linuxMain", "androidNativeMain").forEach {
             getByName(it).kotlin.srcDir("src/linuxLikeMain/kotlin")
         }
-        getByName("posixMain").dependencies { implementation(libs.libc) }
         commonMain.dependencies {
+            api(libs.libc)
             implementation(commonMainDependencyBundle)
         }
         commonTest.dependencies {
+            implementation(libs.kotlinx.coroutines.core)
             implementation(kotlin("test"))
             commonTestDependencyBundle?.let { implementation(it) }
         }

@@ -102,3 +102,11 @@ Kotlin port: Copyright (c) 2026 Sydney Renee and The Solace Project.
 ### Acknowledgments
 
 Thanks to the [`wezterm/wezterm`](https://github.com/wezterm/wezterm) maintainers and contributors for the original Rust implementation. This port reproduces their work in Kotlin Multiplatform; bug reports about upstream design or behavior should go to the upstream repository.
+
+### Unreleased typed polling API
+
+The next source version uses `io.github.kotlinmania.libc.time.StdDuration` from libc-kotlin 0.1.10 for polling timeouts. A null timeout waits indefinitely; `StdDuration.ZERO` checks readiness immediately. The duration preserves unsigned whole seconds and fractional nanoseconds.
+
+Operations return concrete result classes such as `PipeResult`, `PollResult`, and `ReadResult`. Read `value` and `error` directly from Swift. `FileDescriptorError` preserves the failure kind, system error code/interruption state, and descriptor context without exposing Throwable. `asFile()` and `asStdio()` own independent duplicated descriptors and must be closed.
+
+This source is not released. Validate against the sibling source with `./gradlew --include-build ../libc-kotlin macosArm64Test jvmTest`. The existing published dependency example above remains the last released version.
