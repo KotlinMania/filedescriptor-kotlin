@@ -49,7 +49,7 @@ internal fun systemError(): SystemIoException {
 }
 
 private fun checkedFd(fd: Long): Int {
-    if (fd < 0 || fd > Int.MAX_VALUE) throw Error.IllegalFdValue(fd)
+    if (fd < 0 || fd > Int.MAX_VALUE) throw FileDescriptorError.IllegalFdValue(fd)
     return fd.toInt()
 }
 
@@ -61,22 +61,22 @@ private fun changeCloseOnExec(fd: Long, enabled: Boolean): Result<Unit> =
     runCatching {
         val raw = checkedFd(fd)
         val flags = fcntl(raw, constants.f_getfd)
-        if (flags == -1) throw Error.Fcntl(systemError())
+        if (flags == -1) throw FileDescriptorError.Fcntl(systemError())
         val updated = if (enabled) flags or constants.fd_cloexec else flags and constants.fd_cloexec.inv()
-        if (fcntl(raw, constants.f_setfd, updated) == -1) throw Error.Cloexec(systemError())
+        if (fcntl(raw, constants.f_setfd, updated) == -1) throw FileDescriptorError.Cloexec(systemError())
     }
 
 actual fun nonAtomicDup(fd: Long): Result<OwnedHandle> =
     runCatching {
         val duplicate = systemDup(checkedFd(fd))
-        if (duplicate == -1) throw Error.Dup(fd, systemError())
+        if (duplicate == -1) throw FileDescriptorError.Dup(fd, systemError())
         ownDuplicate(duplicate)
     }
 
 actual fun nonAtomicDup2(fd: Long, destFd: Long): Result<OwnedHandle> =
     runCatching {
         val duplicate = systemDup2(checkedFd(fd), checkedFd(destFd))
-        if (duplicate == -1) throw Error.Dup2(fd, destFd, systemError())
+        if (duplicate == -1) throw FileDescriptorError.Dup2(fd, destFd, systemError())
         ownDuplicate(duplicate)
     }
 
@@ -100,7 +100,7 @@ actual fun dupImpl(fd: AsRawFileDescriptor, handleType: HandleType): Result<Owne
             if (error.errorCode == constants.einval) {
                 nonAtomicDup(raw).getOrThrow()
             } else {
-                throw Error.Dup(raw, error)
+                throw FileDescriptorError.Dup(raw, error)
             }
         } else {
             OwnedHandle(duplicate.toLong(), handleType)
@@ -132,7 +132,7 @@ actual fun setNonBlockingImpl(fd: FileDescriptor, nonBlocking: Boolean): Result<
         memScoped {
             val enabled = alloc<IntVar>()
             enabled.value = if (nonBlocking) 1 else 0
-            if (libc_ioctl(raw, constants.fionbio, enabled.ptr) != 0) throw Error.FionBio(systemError())
+            if (libc_ioctl(raw, constants.fionbio, enabled.ptr) != 0) throw FileDescriptorError.FionBio(systemError())
         }
     }
 
@@ -166,7 +166,7 @@ actual fun readPlatform(
         require(offset >= 0 && length >= 0 && offset <= buf.size - length)
         val raw = checkedFd(fd)
         val size = buf.usePinned { systemRead(raw, if (length == 0) null else it.addressOf(offset), length.convert()) }
-        if (size < 0) throw Error.Io(systemError())
+        if (size < 0) throw FileDescriptorError.Io(systemError())
         size.toInt()
     }
 
@@ -181,7 +181,7 @@ actual fun writePlatform(
         require(offset >= 0 && length >= 0 && offset <= buf.size - length)
         val raw = checkedFd(fd)
         val size = buf.usePinned { systemWrite(raw, if (length == 0) null else it.addressOf(offset), length.convert()) }
-        if (size < 0) throw Error.Io(systemError())
+        if (size < 0) throw FileDescriptorError.Io(systemError())
         size.toInt()
     }
 
@@ -202,7 +202,7 @@ private fun createPair(socket: Boolean): Pair<FileDescriptor, FileDescriptor> =
         val result = if (socket) systemSocketpair(constants.af_unix, typeFlags, 0, fds) else createRawPipe(fds)
         if (result == -1) {
             val cause = systemError()
-            throw if (socket) Error.Socketpair(cause) else Error.Pipe(cause)
+            throw if (socket) FileDescriptorError.Socketpair(cause) else FileDescriptorError.Pipe(cause)
         }
         val type = if (socket) HandleType.Socket else HandleType.Pipe
         val first = FileDescriptor(OwnedHandle(fds[0].toLong(), type))
@@ -247,7 +247,7 @@ private fun systemPoll(pfd: List<Pollfd>, duration: Duration?): Int =
                     rounded.coerceIn(0, Int.MAX_VALUE.toLong()).toInt()
                 } ?: -1
             result = libcPoll(fds, millis)
-            if (result < 0) throw Error.Poll(systemError())
+            if (result < 0) throw FileDescriptorError.Poll(systemError())
             remaining = duration?.minus(start.elapsedNow())
         } while (result == 0 && remaining != null && remaining > Duration.ZERO)
         pfd.forEachIndexed { index, item -> item.revents = fds[index].revents }
@@ -255,7 +255,7 @@ private fun systemPoll(pfd: List<Pollfd>, duration: Duration?): Int =
     }
 
 private class NativeFdSet : AutoCloseable {
-    val pointer = libc_fd_set_alloc() ?: throw Error.Io(systemError())
+    val pointer = libc_fd_set_alloc() ?: throw FileDescriptorError.Io(systemError())
 
     fun add(fd: Int) {
         libc_fd_set(fd, pointer)
@@ -273,7 +273,7 @@ private fun selectPoll(pfd: List<Pollfd>, duration: Duration?): Int =
         val descriptors =
             pfd.map {
                 val fd = checkedFd(it.fd)
-                if (fd >= libc_fd_setsize()) throw Error.FdValueOutsideFdSetSize(it.fd)
+                if (fd >= libc_fd_setsize()) throw FileDescriptorError.FdValueOutsideFdSetSize(it.fd)
                 fd
             }
         NativeFdSet().use { reads ->
@@ -297,7 +297,7 @@ private fun selectPoll(pfd: List<Pollfd>, duration: Duration?): Int =
                             seconds,
                             microseconds.toLong(),
                         )
-                    if (result < 0) throw Error.Io(systemError())
+                    if (result < 0) throw FileDescriptorError.Io(systemError())
                     pfd.forEachIndexed { index, item ->
                         val fd = descriptors[index]
                         var events = 0
