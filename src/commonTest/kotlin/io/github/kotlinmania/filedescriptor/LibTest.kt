@@ -7,7 +7,6 @@ import kotlin.test.assertTrue
 import kotlin.time.Duration
 
 class LibTest {
-
     @Test
     fun testSocketpair() {
         val pair = socketpair().getOrThrow()
@@ -37,13 +36,14 @@ class LibTest {
         val pair = socketpair().getOrThrow()
         val a = pair.first
         val b = pair.second
-        val pollArray = mutableListOf(
-            Pollfd(
-                fd = a.asSocketDescriptor(),
-                events = POLLIN,
-                revents = 0,
-            ),
-        )
+        val pollArray =
+            mutableListOf(
+                Pollfd(
+                    fd = a.asSocketDescriptor(),
+                    events = POLLIN,
+                    revents = 0,
+                ),
+            )
         val readyBefore = poll(pollArray, Duration.parse("20ms")).getOrThrow()
         assertEquals(0, readyBefore)
 
