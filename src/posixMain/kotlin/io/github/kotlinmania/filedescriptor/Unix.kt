@@ -48,16 +48,16 @@ internal fun systemError(): SystemIoException {
     return SystemIoException(code, code == constants.eintr, libc_strerror(code)?.toKString() ?: "System I/O error $code")
 }
 
-private fun checkedFd(fd: RawFileDescriptor): Int {
+private fun checkedFd(fd: Long): Int {
     if (fd < 0 || fd > Int.MAX_VALUE) throw Error.IllegalFdValue(fd)
     return fd.toInt()
 }
 
-actual fun cloexec(fd: RawFileDescriptor): Result<Unit> = changeCloseOnExec(fd, true)
+actual fun cloexec(fd: Long): Result<Unit> = changeCloseOnExec(fd, true)
 
-actual fun noCloexec(fd: RawFileDescriptor): Result<Unit> = changeCloseOnExec(fd, false)
+actual fun noCloexec(fd: Long): Result<Unit> = changeCloseOnExec(fd, false)
 
-private fun changeCloseOnExec(fd: RawFileDescriptor, enabled: Boolean): Result<Unit> =
+private fun changeCloseOnExec(fd: Long, enabled: Boolean): Result<Unit> =
     runCatching {
         val raw = checkedFd(fd)
         val flags = fcntl(raw, constants.f_getfd)
@@ -66,14 +66,14 @@ private fun changeCloseOnExec(fd: RawFileDescriptor, enabled: Boolean): Result<U
         if (fcntl(raw, constants.f_setfd, updated) == -1) throw Error.Cloexec(systemError())
     }
 
-actual fun nonAtomicDup(fd: RawFileDescriptor): Result<OwnedHandle> =
+actual fun nonAtomicDup(fd: Long): Result<OwnedHandle> =
     runCatching {
         val duplicate = systemDup(checkedFd(fd))
         if (duplicate == -1) throw Error.Dup(fd, systemError())
         ownDuplicate(duplicate)
     }
 
-actual fun nonAtomicDup2(fd: RawFileDescriptor, destFd: RawFileDescriptor): Result<OwnedHandle> =
+actual fun nonAtomicDup2(fd: Long, destFd: Long): Result<OwnedHandle> =
     runCatching {
         val duplicate = systemDup2(checkedFd(fd), checkedFd(destFd))
         if (duplicate == -1) throw Error.Dup2(fd, destFd, systemError())
@@ -107,7 +107,7 @@ actual fun dupImpl(fd: AsRawFileDescriptor, handleType: HandleType): Result<Owne
         }
     }
 
-actual fun dup2Impl(fd: AsRawFileDescriptor, destFd: RawFileDescriptor): Result<OwnedHandle> =
+actual fun dup2Impl(fd: AsRawFileDescriptor, destFd: Long): Result<OwnedHandle> =
     runCatching { duplicatePosix(checkedFd(fd.asRawFileDescriptor()), checkedFd(destFd)).getOrThrow() }
 
 internal expect fun duplicatePosix(fd: Int, destFd: Int): Result<OwnedHandle>
@@ -116,9 +116,9 @@ internal expect fun createRawPipe(fds: CPointer<IntVar>): Int
 
 internal expect val atomicCloseOnExec: Boolean
 
-actual fun probeHandleTypePlatform(handle: RawFileDescriptor): HandleType = HandleType.Unknown
+actual fun probeHandleTypePlatform(handle: Long): HandleType = HandleType.Unknown
 
-actual fun closeHandlePlatform(handle: RawFileDescriptor, handleType: HandleType) {
+actual fun closeHandlePlatform(handle: Long, handleType: HandleType) {
     systemClose(checkedFd(handle))
 }
 
@@ -156,7 +156,7 @@ actual fun redirectStdioImpl(f: AsRawFileDescriptor, stdio: StdioDescriptor): Re
     }
 
 actual fun readPlatform(
-    fd: RawFileDescriptor,
+    fd: Long,
     handleType: HandleType,
     buf: ByteArray,
     offset: Int,
@@ -171,7 +171,7 @@ actual fun readPlatform(
     }
 
 actual fun writePlatform(
-    fd: RawFileDescriptor,
+    fd: Long,
     handleType: HandleType,
     buf: ByteArray,
     offset: Int,
@@ -185,7 +185,7 @@ actual fun writePlatform(
         size.toInt()
     }
 
-actual fun flushPlatform(fd: RawFileDescriptor): Result<Unit> = Result.success(Unit)
+actual fun flushPlatform(fd: Long): Result<Unit> = Result.success(Unit)
 
 actual fun newPipe(): Result<Pipe> =
     runCatching {

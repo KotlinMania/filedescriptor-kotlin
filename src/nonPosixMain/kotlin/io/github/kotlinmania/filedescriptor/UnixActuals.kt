@@ -133,11 +133,11 @@ internal class SocketDescriptorEnd(
     override fun duplicate(): VirtualDescriptor = this
 }
 
-actual fun cloexec(fd: RawFileDescriptor): Result<Unit> = Result.success(Unit)
+actual fun cloexec(fd: Long): Result<Unit> = Result.success(Unit)
 
-actual fun noCloexec(fd: RawFileDescriptor): Result<Unit> = Result.success(Unit)
+actual fun noCloexec(fd: Long): Result<Unit> = Result.success(Unit)
 
-actual fun nonAtomicDup(fd: RawFileDescriptor): Result<OwnedHandle> {
+actual fun nonAtomicDup(fd: Long): Result<OwnedHandle> {
     val descriptor = UnixDescriptorTable.get(fd)
     val newFd =
         if (descriptor != null) {
@@ -148,7 +148,7 @@ actual fun nonAtomicDup(fd: RawFileDescriptor): Result<OwnedHandle> {
     return Result.success(OwnedHandle(newFd, HandleType.Unknown))
 }
 
-actual fun nonAtomicDup2(fd: RawFileDescriptor, destFd: RawFileDescriptor): Result<OwnedHandle> {
+actual fun nonAtomicDup2(fd: Long, destFd: Long): Result<OwnedHandle> {
     val descriptor = UnixDescriptorTable.get(fd)
     if (descriptor != null) {
         UnixDescriptorTable.put(destFd, descriptor.duplicate())
@@ -158,7 +158,7 @@ actual fun nonAtomicDup2(fd: RawFileDescriptor, destFd: RawFileDescriptor): Resu
 
 actual fun dupImpl(fd: AsRawFileDescriptor, handleType: HandleType): Result<OwnedHandle> = nonAtomicDup(fd.asRawFileDescriptor())
 
-actual fun probeHandleTypePlatform(handle: RawFileDescriptor): HandleType {
+actual fun probeHandleTypePlatform(handle: Long): HandleType {
     val descriptor = UnixDescriptorTable.get(handle)
     return when (descriptor) {
         is PipeReadEnd, is PipeWriteEnd -> HandleType.Pipe
@@ -167,7 +167,7 @@ actual fun probeHandleTypePlatform(handle: RawFileDescriptor): HandleType {
     }
 }
 
-actual fun closeHandlePlatform(handle: RawFileDescriptor, handleType: HandleType) {
+actual fun closeHandlePlatform(handle: Long, handleType: HandleType) {
     val descriptor = UnixDescriptorTable.remove(handle)
     descriptor?.close()
 }
@@ -191,7 +191,7 @@ actual fun redirectStdioImpl(f: AsRawFileDescriptor, stdio: StdioDescriptor): Re
 }
 
 actual fun readPlatform(
-    fd: RawFileDescriptor,
+    fd: Long,
     handleType: HandleType,
     buf: ByteArray,
     offset: Int,
@@ -205,7 +205,7 @@ actual fun readPlatform(
 }
 
 actual fun writePlatform(
-    fd: RawFileDescriptor,
+    fd: Long,
     handleType: HandleType,
     buf: ByteArray,
     offset: Int,
@@ -218,7 +218,7 @@ actual fun writePlatform(
     return Result.success(length)
 }
 
-actual fun flushPlatform(fd: RawFileDescriptor): Result<Unit> {
+actual fun flushPlatform(fd: Long): Result<Unit> {
     val descriptor = UnixDescriptorTable.get(fd)
     descriptor?.flush()
     return Result.success(Unit)
@@ -267,4 +267,4 @@ actual fun pollImpl(pfd: List<Pollfd>, duration: Duration?): Result<Int> {
     return Result.success(count)
 }
 
-actual fun dup2Impl(fd: AsRawFileDescriptor, destFd: RawFileDescriptor): Result<OwnedHandle> = nonAtomicDup2(fd.asRawFileDescriptor(), destFd)
+actual fun dup2Impl(fd: AsRawFileDescriptor, destFd: Long): Result<OwnedHandle> = nonAtomicDup2(fd.asRawFileDescriptor(), destFd)

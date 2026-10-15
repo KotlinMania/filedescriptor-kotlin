@@ -7,9 +7,9 @@ import kotlin.time.Duration
  * FdSet representation for Unix select operations.
  */
 class FdSet {
-    private val fds = mutableSetOf<RawFileDescriptor>()
+    private val fds = mutableSetOf<Long>()
 
-    fun checkFd(fd: RawFileDescriptor): Result<Unit> {
+    fun checkFd(fd: Long): Result<Unit> {
         if (fd < 0) {
             return Result.failure(Error.IllegalFdValue(fd))
         }
@@ -19,38 +19,38 @@ class FdSet {
         return Result.success(Unit)
     }
 
-    fun add(fd: RawFileDescriptor) {
+    fun add(fd: Long) {
         fds.add(fd)
     }
 
-    fun contains(fd: RawFileDescriptor): Boolean = fds.contains(fd)
+    fun contains(fd: Long): Boolean = fds.contains(fd)
 
-    fun materialize(): Set<RawFileDescriptor> = fds.toSet()
+    fun materialize(): Set<Long> = fds.toSet()
 
     fun setPtr(): Any? = null
 
-    fun isSet(fd: RawFileDescriptor): Boolean = fds.contains(fd)
+    fun isSet(fd: Long): Boolean = fds.contains(fd)
 }
 
-expect fun cloexec(fd: RawFileDescriptor): Result<Unit>
+expect fun cloexec(fd: Long): Result<Unit>
 
-expect fun noCloexec(fd: RawFileDescriptor): Result<Unit>
+expect fun noCloexec(fd: Long): Result<Unit>
 
-expect fun nonAtomicDup(fd: RawFileDescriptor): Result<OwnedHandle>
+expect fun nonAtomicDup(fd: Long): Result<OwnedHandle>
 
-expect fun nonAtomicDup2(fd: RawFileDescriptor, destFd: RawFileDescriptor): Result<OwnedHandle>
+expect fun nonAtomicDup2(fd: Long, destFd: Long): Result<OwnedHandle>
 
 expect fun dupImpl(fd: AsRawFileDescriptor, handleType: HandleType): Result<OwnedHandle>
 
-expect fun dup2Impl(fd: AsRawFileDescriptor, destFd: RawFileDescriptor): Result<OwnedHandle>
+expect fun dup2Impl(fd: AsRawFileDescriptor, destFd: Long): Result<OwnedHandle>
 
-expect fun probeHandleTypePlatform(handle: RawFileDescriptor): HandleType
+expect fun probeHandleTypePlatform(handle: Long): HandleType
 
-expect fun closeHandlePlatform(handle: RawFileDescriptor, handleType: HandleType)
+expect fun closeHandlePlatform(handle: Long, handleType: HandleType)
 
-fun dup2(f: AsRawFileDescriptor, destFd: RawFileDescriptor): Result<FileDescriptor> = dup2Impl(f, destFd).map { FileDescriptor(it) }
+fun dup2(f: AsRawFileDescriptor, destFd: Long): Result<FileDescriptor> = dup2Impl(f, destFd).map { FileDescriptor(it) }
 
-fun dup2Platform(fd: AsRawFileDescriptor, destFd: RawFileDescriptor): Result<OwnedHandle> = dup2Impl(fd, destFd)
+fun dup2Platform(fd: AsRawFileDescriptor, destFd: Long): Result<OwnedHandle> = dup2Impl(fd, destFd)
 
 expect fun asStdioImpl(fd: FileDescriptor): Result<Any?>
 
@@ -60,28 +60,28 @@ expect fun setNonBlockingImpl(fd: FileDescriptor, nonBlocking: Boolean): Result<
 
 expect fun redirectStdioImpl(f: AsRawFileDescriptor, stdio: StdioDescriptor): Result<FileDescriptor>
 
-fun asRawFileDescriptor(fd: AsRawFileDescriptor): RawFileDescriptor = fd.asRawFileDescriptor()
+fun asRawFileDescriptor(fd: AsRawFileDescriptor): Long = fd.asRawFileDescriptor()
 
-fun intoRawFileDescriptor(fd: IntoRawFileDescriptor): RawFileDescriptor = fd.intoRawFileDescriptor()
+fun intoRawFileDescriptor(fd: IntoRawFileDescriptor): Long = fd.intoRawFileDescriptor()
 
-fun fromRawFileDescriptor(fd: RawFileDescriptor): OwnedHandle = OwnedHandle.fromRaw(fd)
+fun fromRawFileDescriptor(fd: Long): OwnedHandle = OwnedHandle.fromRaw(fd)
 
-fun asSocketDescriptor(fd: AsRawSocketDescriptor): SocketDescriptor = fd.asSocketDescriptor()
+fun asSocketDescriptor(fd: AsRawSocketDescriptor): Long = fd.asSocketDescriptor()
 
-fun intoSocketDescriptor(fd: IntoRawSocketDescriptor): SocketDescriptor = fd.intoSocketDescriptor()
+fun intoSocketDescriptor(fd: IntoRawSocketDescriptor): Long = fd.intoSocketDescriptor()
 
-fun fromSocketDescriptor(fd: SocketDescriptor): OwnedHandle = OwnedHandle(fd, HandleType.Socket)
+fun fromSocketDescriptor(fd: Long): OwnedHandle = OwnedHandle(fd, HandleType.Socket)
 
-fun asFd(fd: AsRawFileDescriptor): RawFileDescriptor = fd.asRawFileDescriptor()
+fun asFd(fd: AsRawFileDescriptor): Long = fd.asRawFileDescriptor()
 
-fun asRawFd(fd: AsRawFileDescriptor): RawFileDescriptor = fd.asRawFileDescriptor()
+fun asRawFd(fd: AsRawFileDescriptor): Long = fd.asRawFileDescriptor()
 
-fun intoRawFd(fd: IntoRawFileDescriptor): RawFileDescriptor = fd.intoRawFileDescriptor()
+fun intoRawFd(fd: IntoRawFileDescriptor): Long = fd.intoRawFileDescriptor()
 
-fun fromRawFd(fd: RawFileDescriptor): OwnedHandle = OwnedHandle.fromRaw(fd)
+fun fromRawFd(fd: Long): OwnedHandle = OwnedHandle.fromRaw(fd)
 
 expect fun readPlatform(
-    fd: RawFileDescriptor,
+    fd: Long,
     handleType: HandleType,
     buf: ByteArray,
     offset: Int,
@@ -89,14 +89,14 @@ expect fun readPlatform(
 ): Result<Int>
 
 expect fun writePlatform(
-    fd: RawFileDescriptor,
+    fd: Long,
     handleType: HandleType,
     buf: ByteArray,
     offset: Int,
     length: Int,
 ): Result<Int>
 
-expect fun flushPlatform(fd: RawFileDescriptor): Result<Unit>
+expect fun flushPlatform(fd: Long): Result<Unit>
 
 fun asStdioPlatform(fd: FileDescriptor): Result<Any?> = asStdioImpl(fd)
 

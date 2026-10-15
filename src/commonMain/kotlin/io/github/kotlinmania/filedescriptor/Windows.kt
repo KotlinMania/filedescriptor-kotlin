@@ -15,46 +15,46 @@ const val INVALID_SOCKET: Long = -1L
 
 fun defaultHandleTypeWindows(): HandleType = HandleType.Unknown
 
-fun probeHandleTypeIfUnknown(handle: RawFileDescriptor, handleType: HandleType): HandleType =
+fun probeHandleTypeIfUnknown(handle: Long, handleType: HandleType): HandleType =
     when (handleType) {
         HandleType.Unknown -> probeHandleTypePlatform(handle)
         else -> handleType
     }
 
-fun probeHandleTypeWindows(handle: RawFileDescriptor): HandleType = probeHandleTypePlatform(handle)
+fun probeHandleTypeWindows(handle: Long): HandleType = probeHandleTypePlatform(handle)
 
-fun isSocketHandle(handle: RawFileDescriptor, handleType: HandleType): Boolean =
+fun isSocketHandle(handle: Long, handleType: HandleType): Boolean =
     when (handleType) {
         HandleType.Socket -> true
         HandleType.Unknown -> probeHandleTypePlatform(handle) == HandleType.Socket
         else -> false
     }
 
-fun fromRawHandle(handle: RawFileDescriptor): OwnedHandle = OwnedHandle.fromRaw(handle)
+fun fromRawHandle(handle: Long): OwnedHandle = OwnedHandle.fromRaw(handle)
 
-fun asRawHandle(handle: OwnedHandle): RawFileDescriptor = handle.asRawFileDescriptor()
+fun asRawHandle(handle: OwnedHandle): Long = handle.asRawFileDescriptor()
 
-fun intoRawHandle(handle: OwnedHandle): RawFileDescriptor = handle.intoRawFileDescriptor()
+fun intoRawHandle(handle: OwnedHandle): Long = handle.intoRawFileDescriptor()
 
-fun fromRawSocket(socket: SocketDescriptor): OwnedHandle = OwnedHandle(socket, HandleType.Socket)
+fun fromRawSocket(socket: Long): OwnedHandle = OwnedHandle(socket, HandleType.Socket)
 
-fun asRawSocket(handle: OwnedHandle): SocketDescriptor = handle.asRawFileDescriptor()
+fun asRawSocket(handle: OwnedHandle): Long = handle.asRawFileDescriptor()
 
-fun intoRawSocket(handle: OwnedHandle): SocketDescriptor = handle.intoRawFileDescriptor()
+fun intoRawSocket(handle: OwnedHandle): Long = handle.intoRawFileDescriptor()
 
-fun asSocket(handle: OwnedHandle): SocketDescriptor = handle.asRawFileDescriptor()
+fun asSocket(handle: OwnedHandle): Long = handle.asRawFileDescriptor()
 
-fun asRawFileDescriptorWindows(fd: AsRawFileDescriptor): RawFileDescriptor = fd.asRawFileDescriptor()
+fun asRawFileDescriptorWindows(fd: AsRawFileDescriptor): Long = fd.asRawFileDescriptor()
 
-fun intoRawFileDescriptorWindows(fd: IntoRawFileDescriptor): RawFileDescriptor = fd.intoRawFileDescriptor()
+fun intoRawFileDescriptorWindows(fd: IntoRawFileDescriptor): Long = fd.intoRawFileDescriptor()
 
-fun fromRawFileDescriptorWindows(fd: RawFileDescriptor): OwnedHandle = OwnedHandle.fromRaw(fd)
+fun fromRawFileDescriptorWindows(fd: Long): OwnedHandle = OwnedHandle.fromRaw(fd)
 
-fun asSocketDescriptorWindows(fd: AsRawSocketDescriptor): SocketDescriptor = fd.asSocketDescriptor()
+fun asSocketDescriptorWindows(fd: AsRawSocketDescriptor): Long = fd.asSocketDescriptor()
 
-fun intoSocketDescriptorWindows(fd: IntoRawSocketDescriptor): SocketDescriptor = fd.intoSocketDescriptor()
+fun intoSocketDescriptorWindows(fd: IntoRawSocketDescriptor): Long = fd.intoSocketDescriptor()
 
-fun fromSocketDescriptorWindows(fd: SocketDescriptor): OwnedHandle = OwnedHandle(fd, HandleType.Socket)
+fun fromSocketDescriptorWindows(fd: Long): OwnedHandle = OwnedHandle(fd, HandleType.Socket)
 
 fun dupImplWindows(f: AsRawFileDescriptor, handleType: HandleType): Result<OwnedHandle> = dupImpl(f, handleType)
 
