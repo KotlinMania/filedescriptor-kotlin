@@ -1,5 +1,3 @@
-@file:OptIn(kotlin.experimental.ExperimentalObjCRefinement::class)
-
 package io.github.kotlinmania.filedescriptor
 
 /**
@@ -21,6 +19,6 @@ class Pipe(
         /**
          * Create a new unidirectional pipe pair.
          */
-        fun new(): Result<Pipe> = createPipePlatform()
+        fun new(): PipeResult = PipeResult.from(createPipePlatform())
     }
 }

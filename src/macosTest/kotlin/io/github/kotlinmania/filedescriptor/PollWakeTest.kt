@@ -2,6 +2,7 @@
 
 package io.github.kotlinmania.filedescriptor
 
+import io.github.kotlinmania.libc.time.StdDuration
 import kotlinx.cinterop.pointed
 import kotlinx.cinterop.staticCFunction
 import kotlinx.coroutines.Dispatchers
@@ -14,10 +15,9 @@ import libc.cinterop.libc_pthread_self
 import libc.cinterop.libc_signal
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertIs
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.milliseconds
-import kotlin.time.Duration.Companion.seconds
 import kotlin.time.TimeSource
 
 class PollWakeTest {
@@ -57,8 +57,10 @@ class PollWakeTest {
         try {
             Pipe.new().getOrThrow().use { pipe ->
                 withDelayedAction({ assertEquals(0, libc_pthread_kill(target, constants.sigusr1)) }) {
-                    val result = poll(listOf(Pollfd(pipe.read.asRawFileDescriptor(), POLLIN)), 2.seconds)
-                    val cause = assertIs<SystemIoException>(assertIs<FileDescriptorError.Io>(result.exceptionOrNull()).cause)
+                    val result = poll(listOf(Pollfd(pipe.read.asRawFileDescriptor(), POLLIN)), StdDuration.fromMillis(2000u))
+                    val error = assertNotNull(result.error)
+                    assertEquals(FileDescriptorErrorKind.Io, error.kind)
+                    val cause = assertNotNull(error.systemError)
                     assertEquals(constants.eintr, cause.errorCode)
                     assertTrue(cause.interrupted)
                 }

@@ -1,5 +1,6 @@
 [versions]
-libc = "0.1.9"
+libc = "0.1.10"
+thiserror = "0.2.1"
 kotlin = "2.4.20"
 coroutines = "1.11.0"
 serialization = "1.11.0"
@@ -21,6 +22,7 @@ kotlinx-benchmark = { id = "org.jetbrains.kotlinx.benchmark", version.ref = "kot
 kotlin-allopen = { id = "org.jetbrains.kotlin.plugin.allopen", version.ref = "kotlin" }
 
 [libraries]
+thiserror = { module = "io.github.kotlinmania:thiserror-kotlin", version.ref = "thiserror" }
 libc = { module = "io.github.kotlinmania:libc-kotlin", version.ref = "libc" }
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
 kotlinx-serialization-core = { module = "org.jetbrains.kotlinx:kotlinx-serialization-core", version.ref = "serialization" }
@@ -30,10 +32,4 @@ collections-immutable = { module = "org.jetbrains.kotlinx:kotlinx-collections-im
 kotlinx-benchmark-runtime = { module = "org.jetbrains.kotlinx:kotlinx-benchmark-runtime", version.ref = "kotlinxBenchmark" }
 
 [bundles]
-filedescriptor-commonMain = [
-  "kotlinx-coroutines-core",
-  "kotlinx-serialization-core",
-  "kotlinx-serialization-json",
-  "kotlinx-datetime",
-  "collections-immutable",
-]
+filedescriptor-commonMain = ["thiserror"]
