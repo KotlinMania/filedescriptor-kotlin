@@ -4,13 +4,13 @@ Based on AST analysis, here are the concrete next steps.
 
 ## Summary
 
-- **Files Present:** 3/3 (100.0%)
-- **Function parity:** 52/76 matched (target 142) — 68.4%
-- **Class/type parity:** 12/19 matched (target 41) — 63.2%
-- **Combined symbol parity:** 64/95 matched (target 183) — 67.4%
-- **Average inline-code cosine:** 0.39 (function body across 3 matched files)
-- **Average documentation cosine:** 0.23 (doc text across 3 matched files)
-- **Cheat-zeroed Files:** 0
+- **Files Present:** 2/3 (66.7%)
+- **Function parity:** 43/67 matched (target 142) — 64.2%
+- **Class/type parity:** 1/7 matched (target 9) — 14.3%
+- **Combined symbol parity:** 44/74 matched (target 151) — 59.5%
+- **Average inline-code cosine:** 0.10 (function body across 2 matched files)
+- **Average documentation cosine:** 0.00 (doc text across 2 matched files)
+- **Cheat-zeroed Files:** 1
 - **Critical Issues:** 2 files with <0.60 function similarity
 
 ## Priority 1: Fix Incomplete High-Dependency Files
@@ -38,30 +38,18 @@ Every matched file is listed below with function and type symbol parity.
 - **Types:** 0/3 matched (target 1)
 - **Missing types:** `RawFileDescriptor`, `SocketDescriptor`, `HandleType`
 - **Tests:** 0/1 matched
-- **Lint issues:** 4
 
 ### 2. unix
 
-- **Target:** `filedescriptor.Unix`
-- **Similarity:** 0.35
+- **Target:** `filedescriptor.Unix [ZERO]`
+- **Similarity:** 0.00
 - **Dependents:** 0
-- **Priority Score:** 63906.5
-- **Functions:** 32/35 matched (target 75)
+- **Priority Score:** 63910.0
+- **Functions:** 32/35 matched (target 107)
 - **Missing functions:** `drop`, `probe_handle_type`, `new`
-- **Types:** 1/4 matched (target 7)
+- **Types:** 1/4 matched (target 8)
 - **Missing types:** `HandleType`, `RawFileDescriptor`, `SocketDescriptor`
-- **Lint issues:** 8
-
-### 3. lib
-
-- **Target:** `filedescriptor.Lib`
-- **Similarity:** 0.63
-- **Dependents:** 0
-- **Priority Score:** 12103.7
-- **Functions:** 9/9 matched (target 32)
-- **Missing functions:** _none_
-- **Types:** 11/12 matched (target 33)
-- **Missing types:** `Result`
+- **Lint issues:** 1
 
 ## Success Criteria
 
@@ -71,4 +59,17 @@ For each file to be considered "complete":
 - All tests ported
 - Documentation ported
 - port-lint header present
+
+## Reexport / Wiring Modules
+
+These files match `reexport_modules` patterns in `.ast_distance_config.json`. They are filtered out of
+normal priority and missing-file ladders because they are wiring
+modules, not direct logic ports. Consult them for call-site routing;
+do not treat them as the next implementation target by default.
+
+### Missing
+
+| Source | Expected target | Deps | Source path | Expected path |
+|--------|-----------------|------|-------------|---------------|
+| `lib` | `Lib` | 0 | `lib.rs` | `Lib.kt` |
 
