@@ -1,6 +1,7 @@
 @file:OptIn(kotlin.experimental.ExperimentalObjCRefinement::class)
 
 // port-lint: source lib.rs
+
 package io.github.kotlinmania.filedescriptor
 
 import kotlin.native.HiddenFromObjC
@@ -110,73 +111,120 @@ const val POLLHUP: Short = 0x0010
 const val POLLPRI: Short = 0x0002
 const val POLLNVAL: Short = 0x0020
 
+/** A captured system I/O failure, including whether the operation was interrupted. */
+@HiddenFromObjC
+class SystemIoException(
+    val errorCode: Int,
+    val interrupted: Boolean,
+    message: String,
+) : Exception(message)
+
 /**
  * Errors raised by [FileDescriptor], [OwnedHandle], [Pipe], [poll], and
  * [socketpair].
  */
 @HiddenFromObjC
-sealed class Error(message: String, cause: Throwable? = null) : Throwable(message, cause) {
+sealed class Error(
+    message: String,
+    cause: Throwable? = null,
+) : Throwable(message, cause) {
     @HiddenFromObjC
-    class Pipe(cause: Throwable) : Error("failed to create a pipe", cause)
+    class Pipe(
+        cause: Throwable,
+    ) : Error("failed to create a pipe", cause)
 
     @HiddenFromObjC
-    class Socketpair(cause: Throwable) : Error("failed to create a socketpair", cause)
+    class Socketpair(
+        cause: Throwable,
+    ) : Error("failed to create a socketpair", cause)
 
     @HiddenFromObjC
-    class Socket(cause: Throwable) : Error("failed to create a socket", cause)
+    class Socket(
+        cause: Throwable,
+    ) : Error("failed to create a socket", cause)
 
     @HiddenFromObjC
-    class Bind(cause: Throwable) : Error("failed to bind a socket", cause)
+    class Bind(
+        cause: Throwable,
+    ) : Error("failed to bind a socket", cause)
 
     @HiddenFromObjC
-    class Getsockname(cause: Throwable) : Error("failed to fetch socket name", cause)
+    class Getsockname(
+        cause: Throwable,
+    ) : Error("failed to fetch socket name", cause)
 
     @HiddenFromObjC
-    class Listen(cause: Throwable) : Error("failed to set socket to listen mode", cause)
+    class Listen(
+        cause: Throwable,
+    ) : Error("failed to set socket to listen mode", cause)
 
     @HiddenFromObjC
-    class Connect(cause: Throwable) : Error("failed to connect socket", cause)
+    class Connect(
+        cause: Throwable,
+    ) : Error("failed to connect socket", cause)
 
     @HiddenFromObjC
-    class Accept(cause: Throwable) : Error("failed to accept socket", cause)
+    class Accept(
+        cause: Throwable,
+    ) : Error("failed to accept socket", cause)
 
     @HiddenFromObjC
-    class Fcntl(cause: Throwable) : Error("fcntl read failed", cause)
+    class Fcntl(
+        cause: Throwable,
+    ) : Error("fcntl read failed", cause)
 
     @HiddenFromObjC
-    class Cloexec(cause: Throwable) : Error("failed to set cloexec", cause)
+    class Cloexec(
+        cause: Throwable,
+    ) : Error("failed to set cloexec", cause)
 
     @HiddenFromObjC
-    class FionBio(cause: Throwable) : Error("failed to change non-blocking mode", cause)
+    class FionBio(
+        cause: Throwable,
+    ) : Error("failed to change non-blocking mode", cause)
 
     @HiddenFromObjC
-    class Poll(cause: Throwable) : Error("poll failed", cause)
+    class Poll(
+        cause: Throwable,
+    ) : Error("poll failed", cause)
 
     @HiddenFromObjC
-    class Dup(val fd: Long, cause: Throwable) : Error("dup of fd $fd failed", cause)
+    class Dup(
+        val fd: Long,
+        cause: Throwable,
+    ) : Error("dup of fd $fd failed", cause)
 
     @HiddenFromObjC
-    class Dup2(val srcFd: Long, val destFd: Long, cause: Throwable) :
-        Error("dup of fd $srcFd to fd $destFd failed", cause)
+    class Dup2(
+        val srcFd: Long,
+        val destFd: Long,
+        cause: Throwable,
+    ) : Error("dup of fd $srcFd to fd $destFd failed", cause)
 
     @HiddenFromObjC
-    class IllegalFdValue(val fd: Long) : Error("Illegal fd value $fd")
+    class IllegalFdValue(
+        val fd: Long,
+    ) : Error("Illegal fd value $fd")
 
     @HiddenFromObjC
-    class FdValueOutsideFdSetSize(val fd: Long) :
-        Error("fd value $fd too large to use with select(2)")
+    class FdValueOutsideFdSetSize(
+        val fd: Long,
+    ) : Error("fd value $fd too large to use with select(2)")
 
     @HiddenFromObjC
     data object OnlySocketsNonBlocking :
         Error("Only socket descriptors can change their non-blocking mode on Windows")
 
     @HiddenFromObjC
-    class SetStdHandle(cause: Throwable) : Error("SetStdHandle failed", cause)
+    class SetStdHandle(
+        cause: Throwable,
+    ) : Error("SetStdHandle failed", cause)
 
     @HiddenFromObjC
-    class Io(cause: Throwable) : Error("IoError", cause)
+    class Io(
+        cause: Throwable,
+    ) : Error("IoError", cause)
 }
-
 
 /**
  * Platform-independent interface returning a non-owning reference to the
@@ -216,8 +264,9 @@ internal interface FromRawSocketDescriptor<T> {
 class OwnedHandle(
     var handle: RawFileDescriptor,
     var handleType: HandleType = HandleType.Unknown,
-) : AsRawFileDescriptor, IntoRawFileDescriptor, AutoCloseable {
-
+) : AsRawFileDescriptor,
+    IntoRawFileDescriptor,
+    AutoCloseable {
     private var isClosed = false
 
     override fun asRawFileDescriptor(): RawFileDescriptor = handle
@@ -252,20 +301,17 @@ class OwnedHandle(
             )
         }
 
-        fun fromRaw(handle: RawFileDescriptor, handleType: HandleType = HandleType.Unknown): OwnedHandle {
-            return OwnedHandle(
+        fun fromRaw(handle: RawFileDescriptor, handleType: HandleType = HandleType.Unknown): OwnedHandle =
+            OwnedHandle(
                 handle = handle,
                 handleType = if (handleType == HandleType.Unknown) probeHandleType(handle) else handleType,
             )
-        }
 
         /**
          * Attempt to duplicate the underlying handle from an object representable
          * as [RawFileDescriptor].
          */
-        fun <F : AsRawFileDescriptor> dup(f: F): Result<OwnedHandle> {
-            return dupImpl(f, HandleType.Unknown)
-        }
+        fun <F : AsRawFileDescriptor> dup(f: F): Result<OwnedHandle> = dupImpl(f, HandleType.Unknown)
     }
 }
 
@@ -274,8 +320,11 @@ class OwnedHandle(
  */
 class FileDescriptor(
     val handle: OwnedHandle,
-) : AsRawFileDescriptor, IntoRawFileDescriptor, AsRawSocketDescriptor, IntoRawSocketDescriptor, AutoCloseable {
-
+) : AsRawFileDescriptor,
+    IntoRawFileDescriptor,
+    AsRawSocketDescriptor,
+    IntoRawSocketDescriptor,
+    AutoCloseable {
     override fun asRawFileDescriptor(): RawFileDescriptor = handle.asRawFileDescriptor()
 
     override fun intoRawFileDescriptor(): RawFileDescriptor = handle.intoRawFileDescriptor()
@@ -288,58 +337,42 @@ class FileDescriptor(
      * Attempt to duplicate the underlying handle and return a [FileDescriptor]
      * wrapped around the duplicate.
      */
-    fun tryClone(): Result<FileDescriptor> {
-        return handle.tryClone().map { FileDescriptor(it) }
-    }
+    fun tryClone(): Result<FileDescriptor> = handle.tryClone().map { FileDescriptor(it) }
 
     /**
      * Create a standard I/O representation for process redirection.
      */
-    fun asStdio(): Result<Any?> {
-        return asStdioPlatform(this)
-    }
+    fun asStdio(): Result<Any?> = asStdioPlatform(this)
 
     /**
      * Create a file representation using a duplicated handle.
      */
-    fun asFile(): Result<Any?> {
-        return asFilePlatform(this)
-    }
+    fun asFile(): Result<Any?> = asFilePlatform(this)
 
     /**
      * Attempt to change the non-blocking I/O mode.
      */
-    fun setNonBlocking(nonBlocking: Boolean): Result<Unit> {
-        return setNonBlockingPlatform(this, nonBlocking)
-    }
+    fun setNonBlocking(nonBlocking: Boolean): Result<Unit> = setNonBlockingPlatform(this, nonBlocking)
 
     /**
      * Read bytes from the descriptor into [buf].
      */
-    fun read(buf: ByteArray, offset: Int = 0, length: Int = buf.size - offset): Result<Int> {
-        return readPlatform(handle.asRawFileDescriptor(), handle.handleType, buf, offset, length)
-    }
+    fun read(buf: ByteArray, offset: Int = 0, length: Int = buf.size - offset): Result<Int> = readPlatform(handle.asRawFileDescriptor(), handle.handleType, buf, offset, length)
 
     /**
      * Write bytes from [buf] to the descriptor.
      */
-    fun write(buf: ByteArray, offset: Int = 0, length: Int = buf.size - offset): Result<Int> {
-        return writePlatform(handle.asRawFileDescriptor(), handle.handleType, buf, offset, length)
-    }
+    fun write(buf: ByteArray, offset: Int = 0, length: Int = buf.size - offset): Result<Int> = writePlatform(handle.asRawFileDescriptor(), handle.handleType, buf, offset, length)
 
     /**
      * Flush buffered data.
      */
-    fun flush(): Result<Unit> {
-        return flushPlatform(handle.asRawFileDescriptor())
-    }
+    fun flush(): Result<Unit> = flushPlatform(handle.asRawFileDescriptor())
 
     /**
      * Read all remaining bytes into a UTF-8 string.
      */
-    fun readToString(): Result<String> {
-        return readToStringPlatform(this)
-    }
+    fun readToString(): Result<String> = readToStringPlatform(this)
 
     override fun close() {
         handle.close()
@@ -354,31 +387,23 @@ class FileDescriptor(
             return FileDescriptor(handle)
         }
 
-        fun fromRaw(rawFd: RawFileDescriptor): FileDescriptor {
-            return FileDescriptor(OwnedHandle.fromRaw(rawFd))
-        }
+        fun fromRaw(rawFd: RawFileDescriptor): FileDescriptor = FileDescriptor(OwnedHandle.fromRaw(rawFd))
 
         /**
          * Attempt to duplicate the underlying handle from an object representable
          * as [RawFileDescriptor].
          */
-        fun <F : AsRawFileDescriptor> dup(f: F): Result<FileDescriptor> {
-            return OwnedHandle.dup(f).map { FileDescriptor(it) }
-        }
+        fun <F : AsRawFileDescriptor> dup(f: F): Result<FileDescriptor> = OwnedHandle.dup(f).map { FileDescriptor(it) }
 
         /**
          * Duplicate descriptor to a specific target descriptor number.
          */
-        fun <F : AsRawFileDescriptor> dup2(f: F, destFd: RawFileDescriptor): Result<FileDescriptor> {
-            return dup2Platform(f, destFd).map { FileDescriptor(it) }
-        }
+        fun <F : AsRawFileDescriptor> dup2(f: F, destFd: RawFileDescriptor): Result<FileDescriptor> = dup2Platform(f, destFd).map { FileDescriptor(it) }
 
         /**
          * Redirect standard I/O to the specified descriptor.
          */
-        fun <F : AsRawFileDescriptor> redirectStdio(f: F, stdio: StdioDescriptor): Result<FileDescriptor> {
-            return redirectStdioPlatform(f, stdio)
-        }
+        fun <F : AsRawFileDescriptor> redirectStdio(f: F, stdio: StdioDescriptor): Result<FileDescriptor> = redirectStdioPlatform(f, stdio)
     }
 }
 
@@ -395,7 +420,6 @@ class Pipe(
     val read: FileDescriptor,
     val write: FileDescriptor,
 ) : AutoCloseable {
-
     override fun close() {
         try {
             read.close()
@@ -415,20 +439,14 @@ class Pipe(
 /**
  * Examines a set of file descriptors for readiness.
  */
-fun poll(pfd: List<Pollfd>, duration: Duration? = null): Result<Int> {
-    return pollPlatform(pfd, duration)
-}
+fun poll(pfd: List<Pollfd>, duration: Duration? = null): Result<Int> = pollPlatform(pfd, duration)
 
 /**
  * Examines an array of file descriptors for readiness.
  */
-fun poll(pfd: Array<Pollfd>, duration: Duration? = null): Result<Int> {
-    return pollPlatform(pfd.toList(), duration)
-}
+fun poll(pfd: Array<Pollfd>, duration: Duration? = null): Result<Int> = pollPlatform(pfd.toList(), duration)
 
 /**
  * Create a pair of connected stream sockets.
  */
-fun socketpair(): Result<Pair<FileDescriptor, FileDescriptor>> {
-    return socketpairPlatform()
-}
+fun socketpair(): Result<Pair<FileDescriptor, FileDescriptor>> = socketpairPlatform()

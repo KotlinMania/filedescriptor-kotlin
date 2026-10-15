@@ -364,7 +364,18 @@ val jvmToolchainVersion = providers.gradleProperty("jvm.toolchain").getOrElse("2
 kotlin {
     jvmToolchain(jvmToolchainVersion)
 
-    applyDefaultHierarchyTemplate()
+    @OptIn(org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi::class)
+    applyDefaultHierarchyTemplate {
+        common {
+            group("native") {
+                group("posix") {
+                    group("apple") { withApple() }
+                    group("linux") { withLinux() }
+                    group("androidNative") { withAndroidNative() }
+                }
+            }
+        }
+    }
 
     compilerOptions {
         languageVersion.set(KotlinVersion.KOTLIN_2_4)
@@ -499,6 +510,13 @@ kotlin {
     }
 
     sourceSets {
+        listOf("jvmMain", "androidMain", "jsMain", "wasmJsMain", "wasmWasiMain", "mingwMain").forEach {
+            getByName(it).kotlin.srcDir("src/nonPosixMain/kotlin")
+        }
+        listOf("linuxMain", "androidNativeMain").forEach {
+            getByName(it).kotlin.srcDir("src/linuxLikeMain/kotlin")
+        }
+        getByName("posixMain").dependencies { implementation(libs.libc) }
         commonMain.dependencies {
             implementation(commonMainDependencyBundle)
         }
@@ -923,7 +941,11 @@ tasks.register("hostTests") {
 // Patch generated SPM Package.swift to include minimum macOS platform for Swift Concurrency
 tasks.matching { it.name.contains("GenerateSPMPackage") }.configureEach {
     doLast {
-        val spmDir = layout.buildDirectory.dir("SPMPackage").orNull?.asFile
+        val spmDir =
+            layout.buildDirectory
+                .dir("SPMPackage")
+                .orNull
+                ?.asFile
         if (spmDir != null && spmDir.exists()) {
             spmDir.walkTopDown().filter { it.name == "Package.swift" }.forEach { file ->
                 val text = file.readText()
