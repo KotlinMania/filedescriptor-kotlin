@@ -67,7 +67,7 @@ spent working on it!
 
 ```kotlin
 dependencies {
-    implementation("io.github.kotlinmania:filedescriptor-kotlin:0.1.3")
+    implementation("io.github.kotlinmania:filedescriptor-kotlin:0.1.4")
 }
 ```
 
