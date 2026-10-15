@@ -1,5 +1,5 @@
 [versions]
-libc = "0.1.6"
+libc = "0.1.7"
 kotlin = "2.4.20"
 coroutines = "1.11.0"
 serialization = "1.11.0"
