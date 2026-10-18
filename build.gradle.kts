@@ -500,10 +500,6 @@ kotlin {
     swiftExport {
         moduleName = frameworkName
         flattenPackage = projectNamespace
-        @OptIn(org.jetbrains.kotlin.gradle.swiftexport.ExperimentalSwiftExportDsl::class)
-        configure {
-            settings.put("enableCoroutinesSupport", "true")
-        }
     }
 
     // Android KMP library. Block name is `android` — `androidLibrary` is deprecated in current KGP.
@@ -790,11 +786,12 @@ kotlin {
         listOf("linuxMain", "androidNativeMain").forEach {
             getByName(it).kotlin.srcDir("src/linuxLikeMain/kotlin")
         }
-        getByName("posixMain").dependencies { implementation(libs.libc) }
         commonMain.dependencies {
+            api(libs.libc)
             implementation(commonMainDependencyBundle)
         }
         commonTest.dependencies {
+            implementation(libs.kotlinx.coroutines.core)
             implementation(kotlin("test"))
             commonTestDependencyBundle?.let { implementation(it) }
         }
