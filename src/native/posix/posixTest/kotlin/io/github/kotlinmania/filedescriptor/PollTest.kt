@@ -65,7 +65,7 @@ class PollTest {
             RawPipe().use { resize ->
                 RawPipe().use { wake ->
                     val fds =
-                        arrayOf(
+                        listOf(
                             Pollfd(terminal.reader.toLong(), POLLIN, POLLOUT),
                             Pollfd(resize.reader.toLong(), POLLIN, POLLOUT),
                             Pollfd(wake.reader.toLong(), POLLIN, POLLOUT),
@@ -80,7 +80,7 @@ class PollTest {
                     wake.receive()
                     terminal.send()
                     resize.send()
-                    assertEquals(2, poll(fds.toList(), StdDuration.fromMillis(50u)).getOrThrow())
+                    assertEquals(2, poll(fds, StdDuration.fromMillis(50u)).getOrThrow())
                     assertEquals(POLLIN, fds[0].revents)
                     assertEquals(POLLIN, fds[1].revents)
                     assertEquals(0.toShort(), fds[2].revents)
