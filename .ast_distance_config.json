@@ -6,7 +6,7 @@
     "lang": "rust"
   },
   "target": {
-    "path": "src/commonMain/kotlin/io/github/kotlinmania/filedescriptor",
+    "path": "src/common/commonMain/kotlin/io/github/kotlinmania/filedescriptor",
     "lang": "kotlin"
   },
   "checks": {
