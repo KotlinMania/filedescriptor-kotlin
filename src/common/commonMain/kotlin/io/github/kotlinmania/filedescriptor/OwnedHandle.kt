@@ -1,9 +1,7 @@
-@file:OptIn(kotlin.experimental.ExperimentalObjCRefinement::class)
-
 package io.github.kotlinmania.filedescriptor
 
 /**
- * [OwnedHandle] manages the lifecycle of the platform [RawFileDescriptor] type.
+ * [OwnedHandle] manages the lifecycle of the platform raw file descriptor type.
  */
 class OwnedHandle(
     var handle: Long,
@@ -24,7 +22,7 @@ class OwnedHandle(
      * Attempt to duplicate the underlying handle and return an [OwnedHandle]
      * wrapped around the duplicate.
      */
-    fun tryClone(): Result<OwnedHandle> = dupImpl(this, handleType)
+    fun tryClone(): OwnedHandleResult = OwnedHandleResult.from(dupImpl(this, handleType))
 
     override fun close() {
         if (!isClosed) {
@@ -35,7 +33,7 @@ class OwnedHandle(
 
     companion object {
         /**
-         * Create a new handle from an object convertible to [RawFileDescriptor].
+         * Create a new handle from an object convertible to raw file descriptor.
          */
         fun <F : IntoRawFileDescriptor> new(f: F): OwnedHandle {
             val handle = f.intoRawFileDescriptor()
@@ -53,8 +51,8 @@ class OwnedHandle(
 
         /**
          * Attempt to duplicate the underlying handle from an object representable
-         * as [RawFileDescriptor].
+         * as raw file descriptor.
          */
-        fun <F : AsRawFileDescriptor> dup(f: F): Result<OwnedHandle> = dupImpl(f, HandleType.Unknown)
+        fun <F : AsRawFileDescriptor> dup(f: F): OwnedHandleResult = OwnedHandleResult.from(dupImpl(f, HandleType.Unknown))
     }
 }

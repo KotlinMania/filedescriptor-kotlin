@@ -20,7 +20,7 @@ internal actual fun duplicatePosix(fd: Int, destFd: Int): Result<OwnedHandle> =
             if (error.errorCode == constants.einval) {
                 nonAtomicDup2(fd.toLong(), destFd.toLong()).getOrThrow()
             } else {
-                throw FileDescriptorError.Dup2(fd.toLong(), destFd.toLong(), error)
+                throw FileDescriptorFailure.Dup2(fd.toLong(), destFd.toLong(), error)
             }
         } else {
             OwnedHandle(duplicate.toLong())

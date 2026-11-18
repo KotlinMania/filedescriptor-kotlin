@@ -1,32 +1,36 @@
 import Testing
 import Filedescriptor
 
-// Smoke test for the Kotlin → Swift Export → SPM → swift test pipeline.
-//
-// The file's mere existence and successful compilation prove three layers
-// of the pipeline:
-//
-//   1. `embedSwiftExportForXcode` produced `Filedescriptor.swiftmodule/`
-//      and the supporting KotlinRuntimeSupport / ExportedKotlinPackages /
-//      KotlinRuntime swiftmodule bundles. If any of them were missing,
-//      `import Filedescriptor` above would fail at compile time.
-//
-//   2. The static archive `libFiledescriptor.a` (produced by the
-//      `linkSwiftExportBinaryDebugStaticMacosArm64` and
-//      `mergeMacosDebugSwiftExportLibraries` tasks) supplied every
-//      `__root____*` and `KotlinError`-related symbol the Swift modules
-//      reference. If the archive were missing or empty, this test
-//      executable would fail to link with "undefined symbols for
-//      architecture arm64".
-//
-//   3. The Kotlin `swiftExport { moduleName = "Filedescriptor" }` and
-//      `flattenPackage = "io.github.kotlinmania.filedescriptor"` configuration in
-//      build.gradle.kts produced a module name that's both syntactically
-//      valid as a Swift identifier and reachable from this Package.swift
-//      via the `FiledescriptorLibrary` product.
 @Suite struct FiledescriptorExportTests {
-    @Test func swiftModuleLoads() {
-        #expect(Bool(true))
+    @Test func concretePipeResultsAndSharedDuration() throws {
+        let created = Pipe.Companion.shared.new()
+        #expect(created.error == nil)
+        let pipe = try #require(created.value)
+        defer { pipe.close() }
+        let cloned = pipe.read.tryClone()
+        let descriptor = try #require(cloned.value)
+        defer { descriptor.close() }
+        #expect(cloned.error == nil)
+        #expect(descriptor.asRawFileDescriptor() != pipe.read.asRawFileDescriptor())
+        let file = try #require(pipe.read.asFile().value)
+        defer { file.close() }
+        let stdio = try #require(pipe.read.asStdio().value)
+        defer { stdio.close() }
+        let zero = ExportedKotlinPackages.io.github.kotlinmania.libc.time.StdDuration.Companion.shared.ZERO
+        let fd = Pollfd(fd: pipe.write.asRawFileDescriptor(), events: POLLOUT, revents: 0)
+        let ready = poll(pfd: [fd], duration: zero)
+        #expect(ready.value == 1)
+        #expect(ready.error == nil)
+        #expect(fd.revents & POLLOUT != 0)
+    }
+
+    @Test func concreteFailurePreservesDescriptor() throws {
+        let zero = ExportedKotlinPackages.io.github.kotlinmania.libc.time.StdDuration.Companion.shared.ZERO
+        let bad = Pollfd(fd: Int64.max, events: POLLIN, revents: 0)
+        let result = poll(pfd: [bad], duration: zero)
+        #expect(result.value == nil)
+        let error = try #require(result.error)
+        #expect(error.sourceDescriptor == Int64.max)
+        #expect(!error.message.isEmpty)
     }
 }
-

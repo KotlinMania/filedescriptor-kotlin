@@ -3,6 +3,7 @@
 
 package io.github.kotlinmania.filedescriptor
 
+import io.github.kotlinmania.libc.time.StdDuration
 import io.github.kotlinmania.libc.unix.fcntl
 import kotlinx.cinterop.CPointer
 import kotlinx.cinterop.IntVar
@@ -29,9 +30,6 @@ import libc.cinterop.libc_select_timeout
 import libc.cinterop.libc_strerror
 import kotlin.native.OsFamily
 import kotlin.native.Platform
-import kotlin.time.Duration
-import kotlin.time.Duration.Companion.milliseconds
-import kotlin.time.TimeSource
 import io.github.kotlinmania.libc.unix.Pollfd as LibcPollfd
 import io.github.kotlinmania.libc.unix.poll as libcPoll
 import libc.cinterop.libc_close as systemClose
@@ -49,34 +47,34 @@ internal fun systemError(): SystemIoException {
 }
 
 private fun checkedFd(fd: Long): Int {
-    if (fd < 0 || fd > Int.MAX_VALUE) throw FileDescriptorError.IllegalFdValue(fd)
+    if (fd < 0 || fd > Int.MAX_VALUE) throw FileDescriptorFailure.IllegalFdValue(fd)
     return fd.toInt()
 }
 
-actual fun cloexec(fd: Long): Result<Unit> = changeCloseOnExec(fd, true)
+internal actual fun cloexec(fd: Long): Result<Unit> = changeCloseOnExec(fd, true)
 
-actual fun noCloexec(fd: Long): Result<Unit> = changeCloseOnExec(fd, false)
+internal actual fun noCloexec(fd: Long): Result<Unit> = changeCloseOnExec(fd, false)
 
 private fun changeCloseOnExec(fd: Long, enabled: Boolean): Result<Unit> =
     runCatching {
         val raw = checkedFd(fd)
         val flags = fcntl(raw, constants.f_getfd)
-        if (flags == -1) throw FileDescriptorError.Fcntl(systemError())
+        if (flags == -1) throw FileDescriptorFailure.Fcntl(systemError())
         val updated = if (enabled) flags or constants.fd_cloexec else flags and constants.fd_cloexec.inv()
-        if (fcntl(raw, constants.f_setfd, updated) == -1) throw FileDescriptorError.Cloexec(systemError())
+        if (fcntl(raw, constants.f_setfd, updated) == -1) throw FileDescriptorFailure.Cloexec(systemError())
     }
 
-actual fun nonAtomicDup(fd: Long): Result<OwnedHandle> =
+internal actual fun nonAtomicDup(fd: Long): Result<OwnedHandle> =
     runCatching {
         val duplicate = systemDup(checkedFd(fd))
-        if (duplicate == -1) throw FileDescriptorError.Dup(fd, systemError())
+        if (duplicate == -1) throw FileDescriptorFailure.Dup(fd, systemError())
         ownDuplicate(duplicate)
     }
 
-actual fun nonAtomicDup2(fd: Long, destFd: Long): Result<OwnedHandle> =
+internal actual fun nonAtomicDup2(fd: Long, destFd: Long): Result<OwnedHandle> =
     runCatching {
         val duplicate = systemDup2(checkedFd(fd), checkedFd(destFd))
-        if (duplicate == -1) throw FileDescriptorError.Dup2(fd, destFd, systemError())
+        if (duplicate == -1) throw FileDescriptorFailure.Dup2(fd, destFd, systemError())
         ownDuplicate(duplicate)
     }
 
@@ -91,7 +89,7 @@ private fun ownDuplicate(fd: Int): OwnedHandle {
     }
 }
 
-actual fun dupImpl(fd: AsRawFileDescriptor, handleType: HandleType): Result<OwnedHandle> =
+internal actual fun dupImpl(fd: AsRawFileDescriptor, handleType: HandleType): Result<OwnedHandle> =
     runCatching {
         val raw = fd.asRawFileDescriptor()
         val duplicate = fcntl(checkedFd(raw), constants.f_dupfd_cloexec, 0)
@@ -100,14 +98,14 @@ actual fun dupImpl(fd: AsRawFileDescriptor, handleType: HandleType): Result<Owne
             if (error.errorCode == constants.einval) {
                 nonAtomicDup(raw).getOrThrow()
             } else {
-                throw FileDescriptorError.Dup(raw, error)
+                throw FileDescriptorFailure.Dup(raw, error)
             }
         } else {
             OwnedHandle(duplicate.toLong(), handleType)
         }
     }
 
-actual fun dup2Impl(fd: AsRawFileDescriptor, destFd: Long): Result<OwnedHandle> =
+internal actual fun dup2Impl(fd: AsRawFileDescriptor, destFd: Long): Result<OwnedHandle> =
     runCatching { duplicatePosix(checkedFd(fd.asRawFileDescriptor()), checkedFd(destFd)).getOrThrow() }
 
 internal expect fun duplicatePosix(fd: Int, destFd: Int): Result<OwnedHandle>
@@ -116,27 +114,23 @@ internal expect fun createRawPipe(fds: CPointer<IntVar>): Int
 
 internal expect val atomicCloseOnExec: Boolean
 
-actual fun probeHandleTypePlatform(handle: Long): HandleType = HandleType.Unknown
+internal actual fun probeHandleTypePlatform(handle: Long): HandleType = HandleType.Unknown
 
-actual fun closeHandlePlatform(handle: Long, handleType: HandleType) {
+internal actual fun closeHandlePlatform(handle: Long, handleType: HandleType) {
     systemClose(checkedFd(handle))
 }
 
-actual fun asStdioImpl(fd: FileDescriptor): Result<Any?> = fd.tryClone()
-
-actual fun asFileImpl(fd: FileDescriptor): Result<Any?> = fd.tryClone()
-
-actual fun setNonBlockingImpl(fd: FileDescriptor, nonBlocking: Boolean): Result<Unit> =
+internal actual fun setNonBlockingImpl(fd: FileDescriptor, nonBlocking: Boolean): Result<Unit> =
     runCatching {
         val raw = checkedFd(fd.asRawFileDescriptor())
         memScoped {
             val enabled = alloc<IntVar>()
             enabled.value = if (nonBlocking) 1 else 0
-            if (libc_ioctl(raw, constants.fionbio, enabled.ptr) != 0) throw FileDescriptorError.FionBio(systemError())
+            if (libc_ioctl(raw, constants.fionbio, enabled.ptr) != 0) throw FileDescriptorFailure.FionBio(systemError())
         }
     }
 
-actual fun redirectStdioImpl(f: AsRawFileDescriptor, stdio: StdioDescriptor): Result<FileDescriptor> =
+internal actual fun redirectStdioImpl(f: AsRawFileDescriptor, stdio: StdioDescriptor): Result<FileDescriptor> =
     runCatching {
         val destination =
             when (stdio) {
@@ -155,7 +149,7 @@ actual fun redirectStdioImpl(f: AsRawFileDescriptor, stdio: StdioDescriptor): Re
         }
     }
 
-actual fun readPlatform(
+internal actual fun readPlatform(
     fd: Long,
     handleType: HandleType,
     buf: ByteArray,
@@ -166,11 +160,11 @@ actual fun readPlatform(
         require(offset >= 0 && length >= 0 && offset <= buf.size - length)
         val raw = checkedFd(fd)
         val size = buf.usePinned { systemRead(raw, if (length == 0) null else it.addressOf(offset), length.convert()) }
-        if (size < 0) throw FileDescriptorError.Io(systemError())
+        if (size < 0) throw FileDescriptorFailure.Io(systemError())
         size.toInt()
     }
 
-actual fun writePlatform(
+internal actual fun writePlatform(
     fd: Long,
     handleType: HandleType,
     buf: ByteArray,
@@ -181,28 +175,28 @@ actual fun writePlatform(
         require(offset >= 0 && length >= 0 && offset <= buf.size - length)
         val raw = checkedFd(fd)
         val size = buf.usePinned { systemWrite(raw, if (length == 0) null else it.addressOf(offset), length.convert()) }
-        if (size < 0) throw FileDescriptorError.Io(systemError())
+        if (size < 0) throw FileDescriptorFailure.Io(systemError())
         size.toInt()
     }
 
-actual fun flushPlatform(fd: Long): Result<Unit> = Result.success(Unit)
+internal actual fun flushPlatform(fd: Long): Result<Unit> = Result.success(Unit)
 
-actual fun newPipe(): Result<Pipe> =
+internal actual fun newPipe(): Result<Pipe> =
     runCatching {
         val pair = createPair(false)
         Pipe(pair.first, pair.second)
     }
 
-actual fun socketpairImpl(): Result<Pair<FileDescriptor, FileDescriptor>> = runCatching { createPair(true) }
+internal actual fun socketpairImpl(): Result<DescriptorPair> = runCatching { createPair(true) }
 
-private fun createPair(socket: Boolean): Pair<FileDescriptor, FileDescriptor> =
+private fun createPair(socket: Boolean): DescriptorPair =
     memScoped {
         val fds = allocArray<IntVar>(2)
         val typeFlags = constants.sock_stream or if (atomicCloseOnExec) constants.sock_cloexec else 0
         val result = if (socket) systemSocketpair(constants.af_unix, typeFlags, 0, fds) else createRawPipe(fds)
         if (result == -1) {
             val cause = systemError()
-            throw if (socket) FileDescriptorError.Socketpair(cause) else FileDescriptorError.Pipe(cause)
+            throw if (socket) FileDescriptorFailure.Socketpair(cause) else FileDescriptorFailure.Pipe(cause)
         }
         val type = if (socket) HandleType.Socket else HandleType.Pipe
         val first = FileDescriptor(OwnedHandle(fds[0].toLong(), type))
@@ -212,7 +206,7 @@ private fun createPair(socket: Boolean): Pair<FileDescriptor, FileDescriptor> =
                 cloexec(first.asRawFileDescriptor()).getOrThrow()
                 cloexec(second.asRawFileDescriptor()).getOrThrow()
             }
-            Pair(first, second)
+            DescriptorPair(first, second)
         } catch (error: Throwable) {
             first.close()
             second.close()
@@ -220,15 +214,14 @@ private fun createPair(socket: Boolean): Pair<FileDescriptor, FileDescriptor> =
         }
     }
 
-actual fun pollImpl(pfd: List<Pollfd>, duration: Duration?): Result<Int> =
+internal actual fun pollImpl(pfd: List<Pollfd>, duration: StdDuration?): Result<Int> =
     runCatching {
-        require(duration == null || duration >= Duration.ZERO) { "Polling duration must not be negative" }
         pfd.forEach { it.revents = 0 }
-        val timeout = duration?.takeUnless { it.isInfinite() }
+        val timeout = duration
         if (Platform.osFamily == OsFamily.MACOSX) selectPoll(pfd, timeout) else systemPoll(pfd, timeout)
     }
 
-private fun systemPoll(pfd: List<Pollfd>, duration: Duration?): Int =
+private fun systemPoll(pfd: List<Pollfd>, duration: StdDuration?): Int =
     memScoped {
         val fds =
             pfd
@@ -236,26 +229,29 @@ private fun systemPoll(pfd: List<Pollfd>, duration: Duration?): Int =
                     val fd = if (item.fd < 0 && item.fd >= Int.MIN_VALUE) item.fd.toInt() else checkedFd(item.fd)
                     LibcPollfd(fd, item.events, 0)
                 }.toTypedArray()
-        val start = TimeSource.Monotonic.markNow()
         var remaining = duration
         var result: Int
         do {
             val millis =
                 remaining?.let {
-                    val whole = it.inWholeMilliseconds
-                    val rounded = if (it > whole.milliseconds) whole + 1 else whole
-                    rounded.coerceIn(0, Int.MAX_VALUE.toLong()).toInt()
+                    val seconds = it.asSecs()
+                    if (seconds > Int.MAX_VALUE.toULong() / 1000u) {
+                        Int.MAX_VALUE
+                    } else {
+                        val rounded = seconds * 1000u + (it.subsecNanos().toULong() + 999_999u) / 1_000_000u
+                        rounded.coerceAtMost(Int.MAX_VALUE.toULong()).toInt()
+                    }
                 } ?: -1
             result = libcPoll(fds, millis)
-            if (result < 0) throw FileDescriptorError.Poll(systemError())
-            remaining = duration?.minus(start.elapsedNow())
-        } while (result == 0 && remaining != null && remaining > Duration.ZERO)
+            if (result < 0) throw FileDescriptorFailure.Poll(systemError())
+            remaining = remaining?.saturatingSub(StdDuration.fromMillis(millis.toULong()))
+        } while (result == 0 && remaining != null && !remaining.isZero())
         pfd.forEachIndexed { index, item -> item.revents = fds[index].revents }
         result
     }
 
 private class NativeFdSet : AutoCloseable {
-    val pointer = libc_fd_set_alloc() ?: throw FileDescriptorError.Io(systemError())
+    val pointer = libc_fd_set_alloc() ?: throw FileDescriptorFailure.Io(systemError())
 
     fun add(fd: Int) {
         libc_fd_set(fd, pointer)
@@ -268,12 +264,12 @@ private class NativeFdSet : AutoCloseable {
     }
 }
 
-private fun selectPoll(pfd: List<Pollfd>, duration: Duration?): Int =
+private fun selectPoll(pfd: List<Pollfd>, duration: StdDuration?): Int =
     memScoped {
         val descriptors =
             pfd.map {
                 val fd = checkedFd(it.fd)
-                if (fd >= libc_fd_setsize()) throw FileDescriptorError.FdValueOutsideFdSetSize(it.fd)
+                if (fd >= libc_fd_setsize()) throw FileDescriptorFailure.FdValueOutsideFdSetSize(it.fd)
                 fd
             }
         NativeFdSet().use { reads ->
@@ -285,8 +281,10 @@ private fun selectPoll(pfd: List<Pollfd>, duration: Duration?): Int =
                         if ((item.events.toInt() and POLLOUT.toInt()) != 0) writes.add(fd)
                         errors.add(fd)
                     }
-                    val seconds = duration?.inWholeSeconds ?: 0L
-                    val microseconds = duration?.toComponents { _, nanoseconds -> nanoseconds / 1000 } ?: 0
+                    val unsignedSeconds = duration?.asSecs() ?: 0uL
+                    require(unsignedSeconds <= Long.MAX_VALUE.toULong()) { "Polling timeout exceeds the native seconds range" }
+                    val seconds = unsignedSeconds.toLong()
+                    val microseconds = duration?.subsecMicros() ?: 0u
                     val result =
                         libc_select_timeout(
                             (descriptors.maxOrNull() ?: -1) + 1,
@@ -297,7 +295,7 @@ private fun selectPoll(pfd: List<Pollfd>, duration: Duration?): Int =
                             seconds,
                             microseconds.toLong(),
                         )
-                    if (result < 0) throw FileDescriptorError.Io(systemError())
+                    if (result < 0) throw FileDescriptorFailure.Io(systemError())
                     pfd.forEachIndexed { index, item ->
                         val fd = descriptors[index]
                         var events = 0

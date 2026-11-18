@@ -1,88 +1,88 @@
 // port-lint: source windows.rs
 package io.github.kotlinmania.filedescriptor
 
-import kotlin.time.Duration
+import io.github.kotlinmania.libc.time.StdDuration
 
-const val STD_INPUT_HANDLE: Long = 4294967286L
-const val STD_OUTPUT_HANDLE: Long = 4294967285L
-const val STD_ERROR_HANDLE: Long = 4294967284L
+internal const val STD_INPUT_HANDLE: Long = 4294967286L
+internal const val STD_OUTPUT_HANDLE: Long = 4294967285L
+internal const val STD_ERROR_HANDLE: Long = 4294967284L
 
-const val FILE_TYPE_CHAR: Int = 0x0002
-const val FILE_TYPE_DISK: Int = 0x0001
-const val FILE_TYPE_PIPE: Int = 0x0003
-const val INVALID_HANDLE_VALUE: Long = -1L
-const val INVALID_SOCKET: Long = -1L
+internal const val FILE_TYPE_CHAR: Int = 0x0002
+internal const val FILE_TYPE_DISK: Int = 0x0001
+internal const val FILE_TYPE_PIPE: Int = 0x0003
+internal const val INVALID_HANDLE_VALUE: Long = -1L
+internal const val INVALID_SOCKET: Long = -1L
 
-fun defaultHandleTypeWindows(): HandleType = HandleType.Unknown
+internal fun defaultHandleTypeWindows(): HandleType = HandleType.Unknown
 
-fun probeHandleTypeIfUnknown(handle: Long, handleType: HandleType): HandleType =
+internal fun probeHandleTypeIfUnknown(handle: Long, handleType: HandleType): HandleType =
     when (handleType) {
         HandleType.Unknown -> probeHandleTypePlatform(handle)
         else -> handleType
     }
 
-fun probeHandleTypeWindows(handle: Long): HandleType = probeHandleTypePlatform(handle)
+internal fun probeHandleTypeWindows(handle: Long): HandleType = probeHandleTypePlatform(handle)
 
-fun isSocketHandle(handle: Long, handleType: HandleType): Boolean =
+internal fun isSocketHandle(handle: Long, handleType: HandleType): Boolean =
     when (handleType) {
         HandleType.Socket -> true
         HandleType.Unknown -> probeHandleTypePlatform(handle) == HandleType.Socket
         else -> false
     }
 
-fun fromRawHandle(handle: Long): OwnedHandle = OwnedHandle.fromRaw(handle)
+internal fun fromRawHandle(handle: Long): OwnedHandle = OwnedHandle.fromRaw(handle)
 
-fun asRawHandle(handle: OwnedHandle): Long = handle.asRawFileDescriptor()
+internal fun asRawHandle(handle: OwnedHandle): Long = handle.asRawFileDescriptor()
 
-fun intoRawHandle(handle: OwnedHandle): Long = handle.intoRawFileDescriptor()
+internal fun intoRawHandle(handle: OwnedHandle): Long = handle.intoRawFileDescriptor()
 
-fun fromRawSocket(socket: Long): OwnedHandle = OwnedHandle(socket, HandleType.Socket)
+internal fun fromRawSocket(socket: Long): OwnedHandle = OwnedHandle(socket, HandleType.Socket)
 
-fun asRawSocket(handle: OwnedHandle): Long = handle.asRawFileDescriptor()
+internal fun asRawSocket(handle: OwnedHandle): Long = handle.asRawFileDescriptor()
 
-fun intoRawSocket(handle: OwnedHandle): Long = handle.intoRawFileDescriptor()
+internal fun intoRawSocket(handle: OwnedHandle): Long = handle.intoRawFileDescriptor()
 
-fun asSocket(handle: OwnedHandle): Long = handle.asRawFileDescriptor()
+internal fun asSocket(handle: OwnedHandle): Long = handle.asRawFileDescriptor()
 
-fun asRawFileDescriptorWindows(fd: AsRawFileDescriptor): Long = fd.asRawFileDescriptor()
+internal fun asRawFileDescriptorWindows(fd: AsRawFileDescriptor): Long = fd.asRawFileDescriptor()
 
-fun intoRawFileDescriptorWindows(fd: IntoRawFileDescriptor): Long = fd.intoRawFileDescriptor()
+internal fun intoRawFileDescriptorWindows(fd: IntoRawFileDescriptor): Long = fd.intoRawFileDescriptor()
 
-fun fromRawFileDescriptorWindows(fd: Long): OwnedHandle = OwnedHandle.fromRaw(fd)
+internal fun fromRawFileDescriptorWindows(fd: Long): OwnedHandle = OwnedHandle.fromRaw(fd)
 
-fun asSocketDescriptorWindows(fd: AsRawSocketDescriptor): Long = fd.asSocketDescriptor()
+internal fun asSocketDescriptorWindows(fd: AsRawSocketDescriptor): Long = fd.asSocketDescriptor()
 
-fun intoSocketDescriptorWindows(fd: IntoRawSocketDescriptor): Long = fd.intoSocketDescriptor()
+internal fun intoSocketDescriptorWindows(fd: IntoRawSocketDescriptor): Long = fd.intoSocketDescriptor()
 
-fun fromSocketDescriptorWindows(fd: Long): OwnedHandle = OwnedHandle(fd, HandleType.Socket)
+internal fun fromSocketDescriptorWindows(fd: Long): OwnedHandle = OwnedHandle(fd, HandleType.Socket)
 
-fun dupImplWindows(f: AsRawFileDescriptor, handleType: HandleType): Result<OwnedHandle> = dupImpl(f, handleType)
+internal fun dupImplWindows(f: AsRawFileDescriptor, handleType: HandleType): Result<OwnedHandle> = dupImpl(f, handleType)
 
-fun asStdioImplWindows(fd: FileDescriptor): Result<Any?> = Result.success(null)
+internal fun asStdioImplWindows(fd: FileDescriptor): Result<DescriptorStdio> = asStdioImpl(fd)
 
-fun asFileImplWindows(fd: FileDescriptor): Result<Any?> = Result.success(null)
+internal fun asFileImplWindows(fd: FileDescriptor): Result<DescriptorFile> = asFileImpl(fd)
 
-fun setNonBlockingImplWindows(fd: FileDescriptor, nonBlocking: Boolean): Result<Unit> =
+internal fun setNonBlockingImplWindows(fd: FileDescriptor, nonBlocking: Boolean): Result<Unit> =
     if (isSocketHandle(fd.asRawFileDescriptor(), fd.handle.handleType)) {
         Result.success(Unit)
     } else {
-        Result.failure(FileDescriptorError.OnlySocketsNonBlocking)
+        Result.failure(FileDescriptorFailure.OnlySocketsNonBlocking)
     }
 
-fun redirectStdioImplWindows(f: AsRawFileDescriptor, stdio: StdioDescriptor): Result<FileDescriptor> = redirectStdioImpl(f, stdio)
+internal fun redirectStdioImplWindows(f: AsRawFileDescriptor, stdio: StdioDescriptor): Result<FileDescriptor> = redirectStdioImpl(f, stdio)
 
-fun readWindows(fd: FileDescriptor, buf: ByteArray, offset: Int = 0, length: Int = buf.size - offset): Result<Int> = fd.read(buf, offset, length)
+internal fun readWindows(fd: FileDescriptor, buf: ByteArray, offset: Int = 0, length: Int = buf.size - offset): ReadResult = fd.read(buf, offset, length)
 
-fun writeWindows(fd: FileDescriptor, buf: ByteArray, offset: Int = 0, length: Int = buf.size - offset): Result<Int> = fd.write(buf, offset, length)
+internal fun writeWindows(fd: FileDescriptor, buf: ByteArray, offset: Int = 0, length: Int = buf.size - offset): WriteResult = fd.write(buf, offset, length)
 
-fun flushWindows(fd: FileDescriptor): Result<Unit> = fd.flush()
+internal fun flushWindows(fd: FileDescriptor): DescriptorStatus = fd.flush()
 
-fun newPipeWindows(): Result<Pipe> = Pipe.new()
+internal fun newPipeWindows(): PipeResult = Pipe.new()
 
-fun initWinsock(): Result<Unit> = Result.success(Unit)
+internal fun initWinsock(): Result<Unit> = Result.success(Unit)
 
-fun socket(af: Int, type: Int, proto: Int): Result<OwnedHandle> = Result.success(OwnedHandle(101L, HandleType.Socket))
+internal fun socket(af: Int, type: Int, proto: Int): Result<OwnedHandle> = Result.success(OwnedHandle(101L, HandleType.Socket))
 
-fun windowsSocketpair(): Result<Pair<FileDescriptor, FileDescriptor>> = socketpairImpl()
+internal fun windowsSocketpair(): Result<DescriptorPair> = socketpairImpl()
 
-fun windowsPoll(pfd: List<Pollfd>, duration: Duration? = null): Result<Int> = pollImpl(pfd, duration)
+internal fun windowsPoll(pfd: List<Pollfd>, duration: StdDuration? = null): Result<Int> = pollImpl(pfd, duration)

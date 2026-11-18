@@ -1,88 +1,61 @@
 package io.github.kotlinmania.filedescriptor
 
-/**
- * Errors raised by [FileDescriptor], [OwnedHandle], [Pipe], [poll], and
- * [socketpair].
- */
-sealed class FileDescriptorError(
-    message: String,
-    cause: Throwable? = null,
-) : Throwable(message, cause) {
-    class Pipe(
-        cause: Throwable,
-    ) : FileDescriptorError("failed to create a pipe", cause)
-
-    class Socketpair(
-        cause: Throwable,
-    ) : FileDescriptorError("failed to create a socketpair", cause)
-
-    class Socket(
-        cause: Throwable,
-    ) : FileDescriptorError("failed to create a socket", cause)
-
-    class Bind(
-        cause: Throwable,
-    ) : FileDescriptorError("failed to bind a socket", cause)
-
-    class Getsockname(
-        cause: Throwable,
-    ) : FileDescriptorError("failed to fetch socket name", cause)
-
-    class Listen(
-        cause: Throwable,
-    ) : FileDescriptorError("failed to set socket to listen mode", cause)
-
-    class Connect(
-        cause: Throwable,
-    ) : FileDescriptorError("failed to connect socket", cause)
-
-    class Accept(
-        cause: Throwable,
-    ) : FileDescriptorError("failed to accept socket", cause)
-
-    class Fcntl(
-        cause: Throwable,
-    ) : FileDescriptorError("fcntl read failed", cause)
-
-    class Cloexec(
-        cause: Throwable,
-    ) : FileDescriptorError("failed to set cloexec", cause)
-
-    class FionBio(
-        cause: Throwable,
-    ) : FileDescriptorError("failed to change non-blocking mode", cause)
-
-    class Poll(
-        cause: Throwable,
-    ) : FileDescriptorError("poll failed", cause)
-
-    class Dup(
-        val fd: Long,
-        cause: Throwable,
-    ) : FileDescriptorError("dup of fd $fd failed", cause)
-
-    class Dup2(
-        val srcFd: Long,
-        val destFd: Long,
-        cause: Throwable,
-    ) : FileDescriptorError("dup of fd $srcFd to fd $destFd failed", cause)
-
-    class IllegalFdValue(
-        val fd: Long,
-    ) : FileDescriptorError("Illegal fd value $fd")
-
-    class FdValueOutsideFdSetSize(
-        val fd: Long,
-    ) : FileDescriptorError("fd value $fd too large to use with select(2)")
-
-    data object OnlySocketsNonBlocking :
-        FileDescriptorError("Only socket descriptors can change their non-blocking mode on Windows")
-
-    class SetStdHandle(
-        cause: Throwable,
-    ) : FileDescriptorError("SetStdHandle failed", cause)
-
-    class Io(
-        cause: Throwable,
-    ) : FileDescriptorError("IoError", cause)
+/** Failure details for descriptor, pipe, socket-pair, and polling operations. */
+class FileDescriptorError private constructor(
+    val kind: FileDescriptorErrorKind,
+    val message: String,
+    val systemError: SystemIoError?,
+    val sourceDescriptor: Long?,
+    val destinationDescriptor: Long?,
+) {
+    companion object {
+        internal fun fromFailure(failure: Throwable): FileDescriptorError {
+            if (failure is FileDescriptorException) return failure.error
+            val kind =
+                when (failure) {
+                    is FileDescriptorFailure.Pipe -> FileDescriptorErrorKind.Pipe
+                    is FileDescriptorFailure.Socketpair -> FileDescriptorErrorKind.Socketpair
+                    is FileDescriptorFailure.Socket -> FileDescriptorErrorKind.Socket
+                    is FileDescriptorFailure.Bind -> FileDescriptorErrorKind.Bind
+                    is FileDescriptorFailure.Getsockname -> FileDescriptorErrorKind.Getsockname
+                    is FileDescriptorFailure.Listen -> FileDescriptorErrorKind.Listen
+                    is FileDescriptorFailure.Connect -> FileDescriptorErrorKind.Connect
+                    is FileDescriptorFailure.Accept -> FileDescriptorErrorKind.Accept
+                    is FileDescriptorFailure.Fcntl -> FileDescriptorErrorKind.Fcntl
+                    is FileDescriptorFailure.Cloexec -> FileDescriptorErrorKind.Cloexec
+                    is FileDescriptorFailure.FionBio -> FileDescriptorErrorKind.FionBio
+                    is FileDescriptorFailure.Poll -> FileDescriptorErrorKind.Poll
+                    is FileDescriptorFailure.Dup -> FileDescriptorErrorKind.Dup
+                    is FileDescriptorFailure.Dup2 -> FileDescriptorErrorKind.Dup2
+                    is FileDescriptorFailure.IllegalFdValue -> FileDescriptorErrorKind.IllegalFdValue
+                    is FileDescriptorFailure.FdValueOutsideFdSetSize -> FileDescriptorErrorKind.FdValueOutsideFdSetSize
+                    is FileDescriptorFailure.OnlySocketsNonBlocking -> FileDescriptorErrorKind.OnlySocketsNonBlocking
+                    is FileDescriptorFailure.SetStdHandle -> FileDescriptorErrorKind.SetStdHandle
+                    is FileDescriptorFailure.Io -> FileDescriptorErrorKind.Io
+                    is IllegalArgumentException -> FileDescriptorErrorKind.InvalidArgument
+                    else -> FileDescriptorErrorKind.Io
+                }
+            val system =
+                when (failure) {
+                    is SystemIoException -> failure
+                    is FileDescriptorFailure -> failure.source() as? SystemIoException
+                    else -> failure.cause as? SystemIoException
+                }
+            val source =
+                when (failure) {
+                    is FileDescriptorFailure.Dup -> failure.fd
+                    is FileDescriptorFailure.Dup2 -> failure.srcFd
+                    is FileDescriptorFailure.IllegalFdValue -> failure.fd
+                    is FileDescriptorFailure.FdValueOutsideFdSetSize -> failure.fd
+                    else -> null
+                }
+            return FileDescriptorError(
+                kind,
+                failure.message ?: kind.name,
+                system?.let { SystemIoError(it.errorCode, it.interrupted, it.message.orEmpty()) },
+                source,
+                (failure as? FileDescriptorFailure.Dup2)?.destFd,
+            )
+        }
+    }
 }

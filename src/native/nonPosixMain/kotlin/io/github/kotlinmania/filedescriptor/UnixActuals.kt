@@ -1,7 +1,7 @@
 // port-lint: source unix.rs
 package io.github.kotlinmania.filedescriptor
 
-import kotlin.time.Duration
+import io.github.kotlinmania.libc.time.StdDuration
 
 internal object UnixDescriptorTable {
     private var nextFd = 100L
@@ -133,11 +133,11 @@ internal class SocketDescriptorEnd(
     override fun duplicate(): VirtualDescriptor = this
 }
 
-actual fun cloexec(fd: Long): Result<Unit> = Result.success(Unit)
+internal actual fun cloexec(fd: Long): Result<Unit> = Result.success(Unit)
 
-actual fun noCloexec(fd: Long): Result<Unit> = Result.success(Unit)
+internal actual fun noCloexec(fd: Long): Result<Unit> = Result.success(Unit)
 
-actual fun nonAtomicDup(fd: Long): Result<OwnedHandle> {
+internal actual fun nonAtomicDup(fd: Long): Result<OwnedHandle> {
     val descriptor = UnixDescriptorTable.get(fd)
     val newFd =
         if (descriptor != null) {
@@ -148,7 +148,7 @@ actual fun nonAtomicDup(fd: Long): Result<OwnedHandle> {
     return Result.success(OwnedHandle(newFd, HandleType.Unknown))
 }
 
-actual fun nonAtomicDup2(fd: Long, destFd: Long): Result<OwnedHandle> {
+internal actual fun nonAtomicDup2(fd: Long, destFd: Long): Result<OwnedHandle> {
     val descriptor = UnixDescriptorTable.get(fd)
     if (descriptor != null) {
         UnixDescriptorTable.put(destFd, descriptor.duplicate())
@@ -156,9 +156,9 @@ actual fun nonAtomicDup2(fd: Long, destFd: Long): Result<OwnedHandle> {
     return Result.success(OwnedHandle(destFd, HandleType.Unknown))
 }
 
-actual fun dupImpl(fd: AsRawFileDescriptor, handleType: HandleType): Result<OwnedHandle> = nonAtomicDup(fd.asRawFileDescriptor())
+internal actual fun dupImpl(fd: AsRawFileDescriptor, handleType: HandleType): Result<OwnedHandle> = nonAtomicDup(fd.asRawFileDescriptor())
 
-actual fun probeHandleTypePlatform(handle: Long): HandleType {
+internal actual fun probeHandleTypePlatform(handle: Long): HandleType {
     val descriptor = UnixDescriptorTable.get(handle)
     return when (descriptor) {
         is PipeReadEnd, is PipeWriteEnd -> HandleType.Pipe
@@ -167,18 +167,14 @@ actual fun probeHandleTypePlatform(handle: Long): HandleType {
     }
 }
 
-actual fun closeHandlePlatform(handle: Long, handleType: HandleType) {
+internal actual fun closeHandlePlatform(handle: Long, handleType: HandleType) {
     val descriptor = UnixDescriptorTable.remove(handle)
     descriptor?.close()
 }
 
-actual fun asStdioImpl(fd: FileDescriptor): Result<Any?> = Result.success(null)
+internal actual fun setNonBlockingImpl(fd: FileDescriptor, nonBlocking: Boolean): Result<Unit> = Result.success(Unit)
 
-actual fun asFileImpl(fd: FileDescriptor): Result<Any?> = Result.success(null)
-
-actual fun setNonBlockingImpl(fd: FileDescriptor, nonBlocking: Boolean): Result<Unit> = Result.success(Unit)
-
-actual fun redirectStdioImpl(f: AsRawFileDescriptor, stdio: StdioDescriptor): Result<FileDescriptor> {
+internal actual fun redirectStdioImpl(f: AsRawFileDescriptor, stdio: StdioDescriptor): Result<FileDescriptor> {
     val orig =
         FileDescriptor.fromRaw(
             when (stdio) {
@@ -190,7 +186,7 @@ actual fun redirectStdioImpl(f: AsRawFileDescriptor, stdio: StdioDescriptor): Re
     return Result.success(orig)
 }
 
-actual fun readPlatform(
+internal actual fun readPlatform(
     fd: Long,
     handleType: HandleType,
     buf: ByteArray,
@@ -204,7 +200,7 @@ actual fun readPlatform(
     return Result.success(0)
 }
 
-actual fun writePlatform(
+internal actual fun writePlatform(
     fd: Long,
     handleType: HandleType,
     buf: ByteArray,
@@ -218,13 +214,13 @@ actual fun writePlatform(
     return Result.success(length)
 }
 
-actual fun flushPlatform(fd: Long): Result<Unit> {
+internal actual fun flushPlatform(fd: Long): Result<Unit> {
     val descriptor = UnixDescriptorTable.get(fd)
     descriptor?.flush()
     return Result.success(Unit)
 }
 
-actual fun newPipe(): Result<Pipe> {
+internal actual fun newPipe(): Result<Pipe> {
     val state = PipeState()
     val readEnd = PipeReadEnd(state)
     val writeEnd = PipeWriteEnd(state)
@@ -235,7 +231,7 @@ actual fun newPipe(): Result<Pipe> {
     return Result.success(Pipe(read, write))
 }
 
-actual fun socketpairImpl(): Result<Pair<FileDescriptor, FileDescriptor>> {
+internal actual fun socketpairImpl(): Result<DescriptorPair> {
     val aToB = PipeState()
     val bToA = PipeState()
     val socketA = SocketDescriptorEnd(incoming = bToA, outgoing = aToB)
@@ -244,10 +240,10 @@ actual fun socketpairImpl(): Result<Pair<FileDescriptor, FileDescriptor>> {
     val fdB = UnixDescriptorTable.allocate(socketB)
     val first = FileDescriptor(OwnedHandle(fdA, HandleType.Socket))
     val second = FileDescriptor(OwnedHandle(fdB, HandleType.Socket))
-    return Result.success(Pair(first, second))
+    return Result.success(DescriptorPair(first, second))
 }
 
-actual fun pollImpl(pfd: List<Pollfd>, duration: Duration?): Result<Int> {
+internal actual fun pollImpl(pfd: List<Pollfd>, duration: StdDuration?): Result<Int> {
     var count = 0
     for (item in pfd) {
         item.revents = 0
@@ -267,4 +263,4 @@ actual fun pollImpl(pfd: List<Pollfd>, duration: Duration?): Result<Int> {
     return Result.success(count)
 }
 
-actual fun dup2Impl(fd: AsRawFileDescriptor, destFd: Long): Result<OwnedHandle> = nonAtomicDup2(fd.asRawFileDescriptor(), destFd)
+internal actual fun dup2Impl(fd: AsRawFileDescriptor, destFd: Long): Result<OwnedHandle> = nonAtomicDup2(fd.asRawFileDescriptor(), destFd)

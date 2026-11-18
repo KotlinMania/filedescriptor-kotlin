@@ -2,6 +2,7 @@
 
 package io.github.kotlinmania.filedescriptor
 
+import io.github.kotlinmania.libc.time.StdDuration
 import io.github.kotlinmania.libc.unix.fcntl
 import kotlinx.cinterop.IntVar
 import kotlinx.cinterop.addressOf
@@ -17,10 +18,8 @@ import kotlin.native.OsFamily
 import kotlin.native.Platform
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertIs
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
-import kotlin.time.Duration
-import kotlin.time.Duration.Companion.days
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.TimeSource
 import libc.cinterop.libc_close as close
@@ -71,7 +70,7 @@ class PollTest {
                             Pollfd(resize.reader.toLong(), POLLIN, POLLOUT),
                             Pollfd(wake.reader.toLong(), POLLIN, POLLOUT),
                         )
-                    assertEquals(0, poll(fds, Duration.ZERO).getOrThrow())
+                    assertEquals(0, poll(fds, StdDuration.fromMillis(0u)).getOrThrow())
                     assertTrue(fds.all { it.revents == 0.toShort() })
                     wake.send()
                     assertEquals(1, poll(fds, null).getOrThrow())
@@ -81,7 +80,7 @@ class PollTest {
                     wake.receive()
                     terminal.send()
                     resize.send()
-                    assertEquals(2, poll(fds.toList(), 50.milliseconds).getOrThrow())
+                    assertEquals(2, poll(fds.toList(), StdDuration.fromMillis(50u)).getOrThrow())
                     assertEquals(POLLIN, fds[0].revents)
                     assertEquals(POLLIN, fds[1].revents)
                     assertEquals(0.toShort(), fds[2].revents)
@@ -96,7 +95,7 @@ class PollTest {
         RawPipe().use { raw ->
             val fds = listOf(Pollfd(raw.reader.toLong(), POLLIN, POLLIN))
             val start = TimeSource.Monotonic.markNow()
-            assertEquals(0, poll(fds, 30.milliseconds).getOrThrow())
+            assertEquals(0, poll(fds, StdDuration.fromMillis(30u)).getOrThrow())
             assertTrue(start.elapsedNow() >= 20.milliseconds)
             assertEquals(0.toShort(), fds.single().revents)
         }
@@ -105,24 +104,26 @@ class PollTest {
     @Test
     fun emptyDescriptorListHonorsTimeout() {
         val start = TimeSource.Monotonic.markNow()
-        assertEquals(0, poll(emptyList(), 30.milliseconds).getOrThrow())
+        assertEquals(0, poll(emptyList(), StdDuration.fromMillis(30u)).getOrThrow())
         assertTrue(start.elapsedNow() >= 20.milliseconds)
     }
 
     @Test
     fun preservesHostPollingCount() {
-        val (first, second) = socketpair().getOrThrow()
+        val pair = socketpair().getOrThrow()
+        val first = pair.first
+        val second = pair.second
         first.use { reader ->
             second.use { writer ->
                 writer.write(byteArrayOf(7)).getOrThrow()
                 val events = (POLLIN.toInt() or POLLOUT.toInt()).toShort()
                 val fd = Pollfd(reader.asSocketDescriptor(), events)
-                assertEquals(if (Platform.osFamily == OsFamily.MACOSX) 2 else 1, poll(listOf(fd), 50.milliseconds).getOrThrow())
+                assertEquals(if (Platform.osFamily == OsFamily.MACOSX) 2 else 1, poll(listOf(fd), StdDuration.fromMillis(50u)).getOrThrow())
                 assertEquals(events, fd.revents)
                 val isDarwin = Platform.osFamily in setOf(OsFamily.MACOSX, OsFamily.IOS, OsFamily.WATCHOS, OsFamily.TVOS)
                 assertEquals(
                     if (isDarwin) 1 else 2,
-                    poll(listOf(Pollfd(fd.fd, POLLIN), Pollfd(fd.fd, POLLIN)), Duration.ZERO).getOrThrow(),
+                    poll(listOf(Pollfd(fd.fd, POLLIN), Pollfd(fd.fd, POLLIN)), StdDuration.fromMillis(0u)).getOrThrow(),
                 )
             }
         }
@@ -133,9 +134,8 @@ class PollTest {
         RawPipe().use { raw ->
             raw.send()
             val fds = listOf(Pollfd(raw.reader.toLong(), POLLIN))
-            assertEquals(1, poll(fds, 60.days).getOrThrow())
-            assertEquals(1, poll(fds, Duration.INFINITE).getOrThrow())
-            assertIs<IllegalArgumentException>(poll(fds, (-1).milliseconds).exceptionOrNull())
+            assertEquals(1, poll(fds, StdDuration.fromSecs(60uL * 24u * 60u * 60u)).getOrThrow())
+            assertEquals(1, poll(fds, null).getOrThrow())
         }
     }
 
@@ -143,9 +143,11 @@ class PollTest {
     fun reportsClosedDescriptorWithoutLosingSystemError() {
         val fd = Pipe.new().getOrThrow().use { it.read.asRawFileDescriptor() }
         val item = Pollfd(fd, POLLIN)
-        val result = poll(listOf(item), Duration.ZERO)
+        val result = poll(listOf(item), StdDuration.fromMillis(0u))
         if (Platform.osFamily == OsFamily.MACOSX) {
-            val cause = assertIs<SystemIoException>(assertIs<FileDescriptorError.Io>(result.exceptionOrNull()).cause)
+            val error = assertNotNull(result.error)
+            assertEquals(FileDescriptorErrorKind.Io, error.kind)
+            val cause = assertNotNull(error.systemError)
             assertEquals(constants.ebadf, cause.errorCode)
             assertEquals(false, cause.interrupted)
         } else {
@@ -156,15 +158,16 @@ class PollTest {
 
     @Test
     fun validatesDescriptorWidthsAndSelectBounds() {
-        assertIs<FileDescriptorError.IllegalFdValue>(poll(listOf(Pollfd(Long.MAX_VALUE, POLLIN)), Duration.ZERO).exceptionOrNull())
+        assertEquals(FileDescriptorErrorKind.IllegalFdValue, poll(listOf(Pollfd(Long.MAX_VALUE, POLLIN)), StdDuration.fromMillis(0u)).error?.kind)
         if (Platform.osFamily == OsFamily.MACOSX) {
-            assertIs<FileDescriptorError.IllegalFdValue>(poll(listOf(Pollfd(-1, POLLIN)), Duration.ZERO).exceptionOrNull())
-            assertIs<FileDescriptorError.FdValueOutsideFdSetSize>(
-                poll(listOf(Pollfd(libc_fd_setsize().toLong(), POLLIN)), Duration.ZERO).exceptionOrNull(),
+            assertEquals(FileDescriptorErrorKind.IllegalFdValue, poll(listOf(Pollfd(-1, POLLIN)), StdDuration.fromMillis(0u)).error?.kind)
+            assertEquals(
+                FileDescriptorErrorKind.FdValueOutsideFdSetSize,
+                poll(listOf(Pollfd(libc_fd_setsize().toLong(), POLLIN)), StdDuration.fromMillis(0u)).error?.kind,
             )
         } else {
             val ignored = Pollfd(-1, POLLIN, POLLIN)
-            assertEquals(0, poll(listOf(ignored), Duration.ZERO).getOrThrow())
+            assertEquals(0, poll(listOf(ignored), StdDuration.fromMillis(0u)).getOrThrow())
             assertEquals(0.toShort(), ignored.revents)
         }
     }
@@ -178,7 +181,7 @@ class PollTest {
                 pipe.read.close()
                 pipe.write.write(byteArrayOf(10, 20, 30)).getOrThrow()
                 val fds = listOf(Pollfd(duplicate.asRawFileDescriptor(), POLLIN))
-                assertEquals(1, poll(fds, 50.milliseconds).getOrThrow())
+                assertEquals(1, poll(fds, StdDuration.fromMillis(50u)).getOrThrow())
                 val buffer = ByteArray(5)
                 assertEquals(3, duplicate.read(buffer, 1, 3).getOrThrow())
                 assertEquals(listOf<Byte>(0, 10, 20, 30, 0), buffer.toList())
